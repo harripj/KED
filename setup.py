@@ -43,7 +43,7 @@ setup(
         "Topic :: Scientific/Engineering",
         "Topic :: Scientific/Engineering :: Physics",
     ],
-    packages=["KED"],
+    packages=find_packages("."),
     extras_require=extra_feature_requirements,
     install_requires=[
         "ase",
@@ -60,5 +60,5 @@ setup(
         "scipy",
         "tqdm",
     ],
-    package_data={"KED": ["LICENSE", "README.md", "data/*.txt"]},
+    package_data={"": ["LICENSE", "README.md"], "KED": ["data/*.txt"]},
 )
