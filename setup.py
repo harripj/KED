@@ -43,7 +43,7 @@ setup(
         "Topic :: Scientific/Engineering",
         "Topic :: Scientific/Engineering :: Physics",
     ],
-    packages=find_packages(exclude=["KED/tests"]),
+    packages=["KED"],
     extras_require=extra_feature_requirements,
     install_requires=[
         "ase",
@@ -51,6 +51,7 @@ setup(
         "IPython",
         "ipywidgets",
         "matplotlib >= 3.4",
+        "ncempy",
         "numba",
         "numpy",
         "orix >= 0.9",
@@ -59,5 +60,5 @@ setup(
         "scipy",
         "tqdm",
     ],
-    package_data={"": ["LICENSE", "README.md", "readthedocs.yml"], "KED": ["*.py"]},
+    package_data={"KED": ["LICENSE", "README.md", "data/*.txt"]},
 )
