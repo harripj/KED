@@ -361,6 +361,9 @@ def get_series_name(fname):
     if base.endswith("_C"):
         base = base[:-2]
 
+    if base.endswith("_CROP"):
+        base = base[:-5]
+
     return base.strip()
 
 
@@ -643,9 +646,9 @@ def check_bounds_coords(coords, shape, buffer=0):
         True where coords is safely within bounds, False otherwise.
 
     """
-    return np.logical_and(
-        coords >= 0 + buffer, coords < np.asarray(shape) - buffer
-    ).all(axis=-1)
+    l1 = coords >= 0 + buffer
+    l2 = coords < np.asarray(shape) - buffer
+    return np.logical_and(l1, l2).all(axis=-1)
 
 
 def add_floats_to_array(arr, coords, values=None):

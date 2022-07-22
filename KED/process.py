@@ -99,7 +99,7 @@ def virtual_reconstruction(
 
     # format coords array
     coords = np.asarray(coords)
-    if not coords.ndim > 1:
+    if coords.ndim < 2:
         raise ValueError("coords should have at least two dimensions.")
     if coords.shape[-1] != len(frame_shape):
         raise ValueError(
@@ -288,8 +288,8 @@ def apply_mask(image, mask, center=None, _sum=True, normalize=False):
 
 def enhance_peaks(image, sigma=2.0, clip=0, factor=-1.0, dtype=DTYPE):
     """
-    Use a Laplacian of Gaussian filter and clipping to highlight peaks in an image.
-    image.dtype should be either float32 of float64.
+    Use a Laplacian of Gaussian filter and clipping to highlight peaks
+    in an image. `image.dtype` should be either `float32` of `float64`.
 
     Parameters
     ----------
@@ -301,7 +301,7 @@ def enhance_peaks(image, sigma=2.0, clip=0, factor=-1.0, dtype=DTYPE):
         The lower limit clip.
     factor: float
         Scaling factor applied after transformation.
-        -1.0 is used as peaks have negative after transform.
+        -1.0 is used to return positive peak intensities after transform.
     dtype: DTypeLike
         The output datatype.
 
@@ -323,7 +323,7 @@ def find_unique_peaks(
     clip=0,
 ):
     """
-    Find unique peaks between two frames.
+    Find unique peaks in `image1` which are not present in `image2`.
 
     Unique peaks are calculated in image1 relative to image2.
     A Laplacian of Gaussian filter is used to highlight relevant peaks.
@@ -336,8 +336,10 @@ def find_unique_peaks(
         The images in question.
     sigma: float
         The Gaussian width of the transformation.
-        2 * sigma + 1 is used as min_distance in skimage.feature.peak_local_max.
-        Also as the distance threshold to determine isolated peaks in the NN search.
+        2 * sigma + 1 is used as min_distance in
+        skimage.feature.peak_local_max.
+        Also as the distance threshold to determine isolated peaks in
+        the NN search.
     threshold_rel: float
         The relative threshold for skimage.feature.peak_local_max.
     num_peaks: None or int
@@ -370,14 +372,14 @@ def find_unique_peaks(
     # create a NN tree to find isolated peaks in diff
     tree = cKDTree(peaks2)
     # get isolated peaks between the two sets
-    dist, index = tree.query(peaks_diff)
+    dist, index = tree.query(peaks_diff, k=1)
     mask = (
         dist >= 2 * sigma + 1
     )  # peaks must be at least 2 sigma apart (peak_local_max)
     peaks_isolated = peaks_diff[mask]
     # sort by intensity
-    _intensity = diff[tuple(peaks_isolated.T)]
-    peaks_isolated = peaks_isolated[np.argsort(_intensity)[::-1]]
+    intensity = diff[tuple(peaks_isolated.T)]
+    peaks_isolated = peaks_isolated[np.argsort(intensity)[::-1]]
 
     if num_peaks is not None:
         if num_peaks < 1:
@@ -389,7 +391,6 @@ def find_unique_peaks(
 
 def apply_function_to_frame(fname, func, frames, attrs=None, **kwargs):
     """
-
     Apply a function to many frames in hdf5 file produced by TVIPSconverter.
 
     Parameters
