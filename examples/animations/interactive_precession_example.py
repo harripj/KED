@@ -1,9 +1,9 @@
-import sys
 from pathlib import Path
+import sys
 
-import numpy as np
 from ase.io import read
 from matplotlib.cm import viridis
+import numpy as np
 from vispy import app, scene
 from vispy.color import ColorArray
 from vispy.visuals.transforms import STTransform

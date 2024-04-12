@@ -1,10 +1,10 @@
+from pathlib import Path
 import sys
 import time
-from pathlib import Path
 
-import numpy as np
 from ase.io import read
 from matplotlib.cm import viridis
+import numpy as np
 from orix.quaternion.rotation import Rotation
 from orix.vector.vector3d import Vector3d
 from vispy import app, scene

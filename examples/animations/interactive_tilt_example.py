@@ -1,11 +1,11 @@
-import sys
 from pathlib import Path
+import sys
 
-import numpy as np
-import trimesh
 from ase.io import read
 from matplotlib.cm import gray, viridis
+import numpy as np
 from scipy.spatial.transform import Rotation
+import trimesh
 from vispy import app, geometry, scene
 from vispy.color import ColorArray
 from vispy.geometry import create_cylinder
