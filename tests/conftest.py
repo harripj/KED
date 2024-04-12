@@ -1,11 +1,10 @@
 from pathlib import Path
 from typing import List, Tuple
 
+from ked123.utils import add_floats_to_array
 import numpy as np
 from numpy.typing import NDArray
 import pytest
-
-from ked.utils import add_floats_to_array
 
 TEST_DATA_PATH = Path(__file__).parent.joinpath("data")
 

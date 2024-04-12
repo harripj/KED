@@ -1,7 +1,6 @@
+from ked123.microscope import electron_wavelength
 import numpy as np
 import pytest
-
-from ked.microscope import electron_wavelength
 
 
 @pytest.mark.parametrize("voltage, expected", [[200, 2.51], [300, 1.97]])

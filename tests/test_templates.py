@@ -2,6 +2,10 @@ from pathlib import Path
 import re
 from typing import List, Union
 
+from ked123.generator import CrystalDiffractionGenerator
+from ked123.microscope import electron_wavelength, theta_to_k
+from ked123.process import check_bounds_coords, virtual_reconstruction
+from ked123.template import DiffractionTemplateExcitationErrorModel
 from matplotlib import pyplot as plt
 import numpy as np
 from orix.quaternion import Orientation
@@ -10,11 +14,6 @@ from scipy.optimize import linear_sum_assignment
 from scipy.spatial.distance import cdist
 from skimage import io as skio
 from skimage import measure, morphology, segmentation
-
-from ked.generator import CrystalDiffractionGenerator
-from ked.microscope import electron_wavelength, theta_to_k
-from ked.process import check_bounds_coords, virtual_reconstruction
-from ked.template import DiffractionTemplateExcitationErrorModel
 
 
 @pytest.fixture

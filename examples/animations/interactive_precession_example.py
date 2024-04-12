@@ -1,22 +1,21 @@
-import sys
 from pathlib import Path
+import sys
 
-import numpy as np
 from ase.io import read
+import ked123
+from ked123.microscope import *
+from ked123.reciprocal_lattice import *
+from ked123.simulation import calculate_excitation_error
 from matplotlib.cm import viridis
+import numpy as np
 from vispy import app, scene
 from vispy.color import ColorArray
 from vispy.visuals.transforms import STTransform
 
-import ked
-from ked.microscope import *
-from ked.reciprocal_lattice import *
-from ked.simulation import calculate_excitation_error
-
 wavelength = electron_wavelength(200) / 1e-10
 
 hkl = generate_hkl_points(n=25)
-cif = read(Path(ked.__file__).parent.joinpath("Fe alpha.cif"))
+cif = read(Path(ked123.__file__).parent.joinpath("Fe alpha.cif"))
 reciprocal = reciprocal_vectors(*cif.get_cell())
 g = calculate_g_vectors(hkl, reciprocal)
 
