@@ -1,10 +1,10 @@
-from pathlib import Path
 import sys
 import time
+from pathlib import Path
 
+import numpy as np
 from ase.io import read
 from matplotlib.cm import viridis
-import numpy as np
 from orix.quaternion.rotation import Rotation
 from orix.vector.vector3d import Vector3d
 from vispy import app, scene
@@ -13,18 +13,18 @@ from vispy.geometry import create_cone
 from vispy.scene.visuals import Image, Mesh
 from vispy.visuals.transforms import STTransform
 
-import KED
-from KED.generator import CrystalDiffractionGenerator
-from KED.microscope import *
-from KED.reciprocal_lattice import *
-from KED.simulation import kernel_blurred_disk
-from KED.template import calculate_excitation_error
+import ked
+from ked.generator import CrystalDiffractionGenerator
+from ked.microscope import *
+from ked.reciprocal_lattice import *
+from ked.simulation import kernel_blurred_disk
+from ked.template import calculate_excitation_error
 
 V = 200  # kV
 wavelength = electron_wavelength(V)
 
 hkl = generate_hkl_points(n=25)
-cif = read(Path(KED.__file__).parent.joinpath("data", "testing", "Fe alpha.cif"))
+cif = read(Path(ked.__file__).parent.joinpath("data", "testing", "Fe alpha.cif"))
 
 atoms = cif * (10, 10, 3)
 apos = atoms.get_positions()

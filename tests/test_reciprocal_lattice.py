@@ -1,37 +1,12 @@
-from pathlib import Path
-
 import numpy as np
+from numpy.typing import NDArray
 from orix.quaternion import Orientation
 from orix.vector import Vector3d
-import pytest
 
-import KED
-from KED.reciprocal_lattice import lattice_vectors_from_structure, reciprocal_vectors
+from ked.reciprocal_lattice import reciprocal_vectors
 
 
-@pytest.fixture
-def testing_data_directory():
-    out = Path(KED.__file__).parent.joinpath("data", "testing")
-    if not out.exists():
-        raise FileNotFoundError("Testing data not found.")
-    return out
-
-
-@pytest.fixture
-def CIF_Ni_FCC(testing_data_directory):
-    out = testing_data_directory.joinpath("Ni.cif")
-    assert out.exists()
-    return out
-
-
-@pytest.fixture
-def CIF_Ni4W_tetragonal(testing_data_directory):
-    out = testing_data_directory.joinpath("Ni4W.cif")
-    assert out.exists()
-    return out
-
-
-def explicit_reciprocal_vectors(vectors):
+def explicit_reciprocal_vectors(vectors: NDArray):
     """Standard definition of reciprocal lattice vectors.
 
     Notes
@@ -84,7 +59,7 @@ def test_rotate_cell_rotate_reciprocal_vectors():
     vectors_rotated = ori * Vector3d(vectors)
     recip = reciprocal_vectors(*vectors)
     recip_rotated = ori * Vector3d(recip)
-    assert np.allclose(vectors_rotated.data, recip_rotated.data)
+    assert np.allclose(reciprocal_vectors(*vectors_rotated.data), recip_rotated.data)
 
 
 # @pytest.mark.parametrize(params=["CIF_Ni_FCC", "CIF_Ni4W_tetragonal"])

@@ -1,18 +1,19 @@
 import numpy as np
+from numpy.typing import ArrayLike, DTypeLike
 from scipy import constants
 
 from .reciprocal_lattice import theta_to_k
 from .utils import DTYPE
 
 
-def electron_wavelength(kV, dtype=DTYPE):
+def electron_wavelength(kV: float, dtype: DTypeLike = DTYPE) -> float:
     """
     Calculate the electron wavelength with accelerating voltage V (kV).
 
     Parameters
     ----------
-    V: float
-        Acceleraing voltage in kV.
+    kV: float
+        Accelerating voltage in kV.
 
     Returns
     -------
@@ -31,7 +32,12 @@ def electron_wavelength(kV, dtype=DTYPE):
     return dtype(wavelength / constants.angstrom)
 
 
-def calculate_pixel_size(camera_diameter, camera_length, shape, wavelength):
+def calculate_pixel_size(
+    camera_diameter: float,
+    camera_length: float,
+    shape: ArrayLike,
+    wavelength: float,
+) -> float:
     """Calculate the pixel size in reciprocal space.
 
     Parameters

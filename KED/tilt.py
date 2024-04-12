@@ -1,10 +1,21 @@
 from itertools import accumulate
+from typing import List, Optional, Union
 
 import numpy as np
+from numpy.typing import ArrayLike, DTypeLike, NDArray
 from scipy.spatial.transform import Rotation
 
+from .generator import DiffractionGenerator
 
-def compute_VR_tilt_series(diffgen, data, rotations, pixel_size, index=0, **kwargs):
+
+def compute_VR_tilt_series(
+    diffgen: DiffractionGenerator,
+    data: List[NDArray],
+    rotations: Union[Rotation, List[Rotation]],
+    pixel_size: ArrayLike,
+    index: int = 0,
+    **kwargs,
+) -> List[NDArray]:
     """
     Compute virtual reconstructions from tilt series data. The template
     will be rotated for each dataset and the VR will be computed for

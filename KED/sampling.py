@@ -1,5 +1,5 @@
 import numpy as np
-from numpy.typing import ArrayLike, DTypeLike
+from numpy.typing import ArrayLike, DTypeLike, NDArray
 
 from .utils import DTYPE
 
@@ -11,7 +11,7 @@ def generate_grid(
     num: int,
     endpoint: bool = True,
     ravel: bool = True,
-) -> np.ndarray:
+) -> NDArray:
     """
     Generate a grid with even sampling over a specified range.
 
@@ -53,7 +53,7 @@ def generate_supersampled_grid(
     num: int,
     supersampling: int = 5,
     dtype: DTypeLike = DTYPE,
-) -> np.ndarray:
+) -> NDArray:
     """
     Generate an evenly supersampled grid over a specified range.
 

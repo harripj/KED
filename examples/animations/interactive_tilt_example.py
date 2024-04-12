@@ -1,26 +1,26 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
+import numpy as np
+import trimesh
 from ase.io import read
 from matplotlib.cm import gray, viridis
-import numpy as np
 from scipy.spatial.transform import Rotation
-import trimesh
 from vispy import app, geometry, scene
 from vispy.color import ColorArray
 from vispy.geometry import create_cylinder
 from vispy.visuals.mesh import MeshData, MeshVisual
 from vispy.visuals.transforms import STTransform
 
-import KED
-from KED.microscope import *
-from KED.reciprocal_lattice import *
-from KED.simulation import calculate_excitation_error
+import ked
+from ked.microscope import *
+from ked.reciprocal_lattice import *
+from ked.simulation import calculate_excitation_error
 
 wavelength = electron_wavelength(200) / 1e-10
 
 hkl = generate_hkl_points(None, None, np.arange(-5, 5 + 1), n=25)
-cif = read(Path(KED.__file__).parent.joinpath("Fe alpha.cif"))
+cif = read(Path(ked.__file__).parent.joinpath("Fe alpha.cif"))
 reciprocal = reciprocal_vectors(*cif.get_cell())
 g = calculate_g_vectors(hkl, reciprocal)
 

@@ -1,9 +1,6 @@
-import math
-from typing import Union
-
 import numba
 import numpy as np
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, DTypeLike, NDArray
 from orix.quaternion import Quaternion, Rotation
 from orix.vector import AxAngle, Vector3d
 
@@ -34,7 +31,7 @@ def calculate_rotation_vector(v1: ArrayLike, v2: ArrayLike) -> Rotation:
 
 
 @numba.njit
-def _rotate_coords_2d(coords, angle):
+def _rotate_coords_2d(coords: NDArray, angle: float) -> NDArray:
     """
     Rotate a set of coordinates by an angle.
 
@@ -59,7 +56,12 @@ def _rotate_coords_2d(coords, angle):
 
 
 @numba.njit
-def generate_rotated_template(coords, angle, scale_factor, shift):
+def generate_rotated_template(
+    coords: NDArray,
+    angle: float,
+    scale_factor: float,
+    shift: NDArray,
+) -> NDArray:
     """
     Rotate a template rotated by angle.
 

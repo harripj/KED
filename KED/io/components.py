@@ -1,9 +1,11 @@
 from pathlib import Path
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
+import pandas as pd
+from numpy.typing import NDArray
 from orix.quaternion.orientation import Orientation
 from orix.quaternion.symmetry import C1, Symmetry
-import pandas as pd
 from scipy.spatial import cKDTree
 from skimage import measure, morphology
 from tqdm.auto import tqdm
@@ -11,10 +13,13 @@ from tqdm.auto import tqdm
 from ..orientations import compute_symmetry_reduced_orientation, convert_to_orix
 from .res import ANG
 
-QKEYS = ["a", "b", "c", "d"]
 
-
-def filter_component_image(mask, min_size=32, exclude_border=0, connectivity=1):
+def filter_component_image(
+    mask: Union[NDArray, NDArray[np.bool_]],
+    min_size: int = 32,
+    exclude_border: int = 0,
+    connectivity: int = 1,
+):
     """
     Use components images to separate and filter components.
 
@@ -66,7 +71,7 @@ def filter_component_image(mask, min_size=32, exclude_border=0, connectivity=1):
     return mask
 
 
-def create_edge_image(mask, delta=(-1, 1)):
+def create_edge_image(mask: NDArray, delta: Tuple[int, int] = (-1, 1)):
     """
     Creates an image of egdes from a binary or greyscale image eg.
     numbered, skimage.measure.label, or Gwyddion number_grains() image.
@@ -108,7 +113,12 @@ def create_edge_image(mask, delta=(-1, 1)):
     return edges
 
 
-def compute_component_walker(ori, start, angle=3.0, symmetry=None):
+def compute_component_walker(
+    ori: Orientation,
+    start: Tuple[int, int],
+    angle: float = 3.0,
+    symmetry: Optional[Symmetry] = None,
+):
     """
     Compute connected orientations into components.
     A walker is initialized to search for small misorientations between
@@ -168,7 +178,9 @@ def compute_component_walker(ori, start, angle=3.0, symmetry=None):
     return mask == 1  # return only connected mask
 
 
-def _convert_ang_input(ang, check_shape=True):
+def _convert_ang_input(
+    ang: Union[List[str], Tuple[str], str, Path, ANG], check_shape: bool = True
+):
     """Check input are all ANG or Path to .ang and return list of ANG."""
     if not isinstance(ang, (list, tuple)):
         assert isinstance(ang, (ANG, str, Path)), "ang must be ANG or path to .ang."
@@ -187,7 +199,7 @@ def _convert_ang_input(ang, check_shape=True):
     return ang
 
 
-def orientation_stack_from_ang(ang):
+def orientation_stack_from_ang(ang: List[ANG]):
     """
     Compute orientation stack from ANG.
 
@@ -208,13 +220,13 @@ def orientation_stack_from_ang(ang):
 
 
 def connect_components(
-    ang,
-    max_angle=5.0,
-    symmetry=C1,
-    min_size=32,
-    exclude_border=0,
-    connectivity=1,
-    save=None,
+    ang: List[ANG],
+    max_angle: float = 5.0,
+    symmetry: Symmetry = C1,
+    min_size: int = 32,
+    exclude_border: int = 0,
+    connectivity: int = 1,
+    save: bool = None,
 ):
     """
     Connect a set of indexed orientations (.ang) within a defined
@@ -331,7 +343,7 @@ def connect_components(
     return out
 
 
-def load_components_indices(fname):
+def load_components_indices(fname: Union[str, Path]):
     """Load components indices from file. Returns these indices and ANG
     file names."""
     fname = Path(fname)
@@ -354,12 +366,12 @@ def load_components_indices(fname):
     return out, ang_files
 
 
-def load_components(fname):
+def load_components(fname: Union[str, Path]):
     """Load components file created by calculate_component_statistics."""
     return pd.read_csv(fname, index_col=0)
 
 
-def load_components_ASTAR(fname):
+def load_components_ASTAR(fname: Union[str, Path]):
     """Load component file produced from ASTAR MapViewer."""
     with open(fname) as f:
         column_names = f.readline()
@@ -367,7 +379,9 @@ def load_components_ASTAR(fname):
     return pd.read_csv(fname, delimiter="\s+", names=column_names, skiprows=1)
 
 
-def recreate_component_from_indices(indices, shape, n=None):
+def recreate_component_from_indices(
+    indices: NDArray, shape: Tuple[int, int], n: Optional[int] = None
+):
     """
     Recreate a (binary) component or grain from a set of indices
     corresponding to n overlapping datasets.
@@ -405,7 +419,12 @@ def recreate_component_from_indices(indices, shape, n=None):
     return out.squeeze()
 
 
-def calculate_component_statistics(ori, indices, save=None, round=2):
+def calculate_component_statistics(
+    ori: Orientation,
+    indices: NDArray,
+    save: Optional[Symmetry] = None,
+    round: int = 2,
+):
     """
     Calculate component statistics from component indices.
 

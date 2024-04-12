@@ -1,9 +1,11 @@
 import math
+from typing import List, Literal, Optional, Tuple, Union
 
-from matplotlib.pyplot import Axes
 import numpy as np
-from numpy.typing import ArrayLike
-from orix.quaternion import Orientation, Quaternion, Rotation, symmetry
+from matplotlib.pyplot import Axes
+from numpy.typing import ArrayLike, NDArray
+from orix.quaternion import Orientation, Quaternion, Rotation
+from orix.quaternion.symmetry import C1, Symmetry
 from orix.vector import AxAngle
 from scipy import ndimage, optimize
 from scipy.spatial.transform import Rotation as spRotation
@@ -12,7 +14,7 @@ from tqdm.auto import tqdm
 from .utils import generate_thetas
 
 
-def format_matrix(x):
+def format_matrix(x: ArrayLike) -> NDArray:
     """
     Make sure rotation matrix is square and at least 3d.
 
@@ -39,7 +41,7 @@ def format_matrix(x):
     return x[np.newaxis] if x.ndim == 2 else x
 
 
-def convert_to_scipy(x):
+def convert_to_scipy(x: Union[NDArray, Quaternion, spRotation]) -> spRotation:
     """
     Convert either rotation matrix or Quaternion to scipy Rotation.
 
@@ -67,7 +69,7 @@ def convert_to_scipy(x):
     return out
 
 
-def convert_to_orix(x):
+def convert_to_orix(x: Union[NDArray, Quaternion, spRotation]) -> Quaternion:
     """
     Convert either rotation matrix or scipy Rotation to orix Quaternion.
 
@@ -95,7 +97,7 @@ def convert_to_orix(x):
     return out
 
 
-def convert_to_matrix(x):
+def convert_to_matrix(x: Union[NDArray, Quaternion, spRotation]) -> NDArray:
     """
     Convert either scipy Rotation or orix Quaternion to rotation matrix.
 
@@ -121,33 +123,7 @@ def convert_to_matrix(x):
     return out
 
 
-def convert_orientations_to_matrix(a):
-    """
-    Format orientation to return in matrix representation.
-
-    Parameters
-    ----------
-    ori: (N,) scipy.spatial.transform.Rotation or (N, d, d) ndarray
-        N orientations.
-
-    Returns
-    -------
-    mat: (N, d, d) ndarray
-        Orientation matrix.
-    """
-    if isinstance(a, spRotation):
-        a = a.as_matrix()
-    elif isinstance(a, np.ndarray):
-        assert len(set(a.shape[-2:])) == 1, f"a is not a square array:{a.shape}"
-        if a.ndim == 2:
-            a = a[np.newaxis]
-    else:
-        raise ValueError(f"Current type of a is not supported: {type(a)}")
-
-    return a
-
-
-def rotation_between_vectors(v1, v2):
+def rotation_between_vectors(v1: ArrayLike, v2: ArrayLike) -> Rotation:
     """Calculate the rotation that takes v1 to v2."""
     v1 = np.asarray(v1)
     v2 = np.asarray(v2)
@@ -156,7 +132,9 @@ def rotation_between_vectors(v1, v2):
     return Rotation.from_axes_angles(v3, angle)
 
 
-def compute_symmetry_reduced_orientation(ori1, ori2):
+def compute_symmetry_reduced_orientation(
+    ori1: Orientation, ori2: Orientation
+) -> Orientation:
     """Compute the symmetry reduced orientations of ori1 with the
     smallest disorientation angle to ori2.
 
@@ -197,7 +175,9 @@ def compute_symmetry_reduced_orientation(ori1, ori2):
     return ori1.__class__(out)
 
 
-def get_closest_symmetry_orientation(ori1, ori2, n=1):
+def get_closest_symmetry_orientation(
+    ori1: Orientation, ori2: Orientation, n: int = 1
+) -> Tuple[Orientation, int]:
     """Compute the symmetry reduced orientation of ori1 which has
     smallest disorientation angle to ori2.
 
@@ -238,8 +218,14 @@ def get_closest_symmetry_orientation(ori1, ori2, n=1):
 
 
 def track_orientation(
-    ori, orientations, rot, index=0, tracking="previous", return_indices=False, n=1
-):
+    ori: Orientation,
+    orientations: List[Orientation],
+    rot: Rotation,
+    index: int = 0,
+    tracking: Literal["previous", "expected"] = "previous",
+    return_indices: bool = False,
+    n: int = 1,
+) -> Tuple[Orientation, List[int]]:
     """Track an orientation through the set of orientations.
 
     Parameters
@@ -343,14 +329,14 @@ def track_orientation(
 
 
 def filter_tracked_components(
-    indices,
-    component_images,
-    size_weighting=0.25,
-    displacement_weighting=0.8,
-    tilt_axis="y",
-    transform=None,
-    index=0,
-):
+    indices: ArrayLike,
+    component_images: ArrayLike,
+    size_weighting: float = 0.25,
+    displacement_weighting: float = 0.8,
+    tilt_axis: Literal["x", "y"] = "y",
+    transform: Optional[NDArray] = None,
+    index: int = 0,
+) -> NDArray:
     """Given more than one possible tracked component, use other
     parameters such as displacement and size to choose the correct
     component.
@@ -429,7 +415,9 @@ def filter_tracked_components(
     return out
 
 
-def chain_rotations(rot, index=0, insert_identity=False):
+def chain_rotations(
+    rot: Rotation, index: int = 0, insert_identity: bool = False
+) -> Rotation:
     """
     Apply a set of orientations in order. It is assumed that the
     rotations are applied in sequence from index 0. It is also assumed
@@ -483,7 +471,9 @@ def chain_rotations(rot, index=0, insert_identity=False):
     return Rotation(np.concatenate(data))
 
 
-def apply_chained_rotations(rot, ori, index=0):
+def apply_chained_rotations(
+    rot: Rotation, ori: Orientation, index: int = 0
+) -> Orientation:
     """
     Apply a set of orientations in order to a given orientation.
     It is assumed that the rotations are applied in sequence from index
@@ -525,7 +515,7 @@ def apply_chained_rotations(rot, ori, index=0):
     return ~(rot_chained * ~ori)
 
 
-def rotation_axis_from_theta(theta: ArrayLike, z: ArrayLike = 0):
+def rotation_axis_from_theta(theta: ArrayLike, z: ArrayLike = 0) -> AxAngle:
     """
     Convenience function to return normalized rotation axis from theta
     and z.
@@ -547,7 +537,9 @@ def rotation_axis_from_theta(theta: ArrayLike, z: ArrayLike = 0):
     return AxAngle(axis).unit
 
 
-def compute_rotated_crystal_disorientation_matrix(rot, ori1, ori2, match=False):
+def compute_rotated_crystal_disorientation_matrix(
+    rot: Rotation, ori1: Orientation, ori2: Orientation, match: bool = False
+) -> Union[NDArray, Tuple[NDArray, Tuple[NDArray, NDArray]]]:
     """Compute the disorientation matrix in the crystal reference frame
     after rotation in the lab reference frame.
 
@@ -588,18 +580,18 @@ def compute_rotated_crystal_disorientation_matrix(rot, ori1, ori2, match=False):
 
 
 def scan_tilt_axis(
-    angle,
-    ori1,
-    ori2,
-    z=0.0,
-    n=360,
-    max_angle=None,
-    refine=False,
-    refine_max_angle=2.0,
-    ax=None,
-    return_residuals=False,
+    angle: float,
+    ori1: Orientation,
+    ori2: Orientation,
+    z: float = 0.0,
+    n: int = 360,
+    max_angle: Optional[float] = None,
+    refine: bool = False,
+    refine_max_angle: float = 2.0,
+    ax: Optional[Axes] = None,
+    return_residuals: bool = False,
     **kwargs,
-):
+) -> Union[Rotation, Tuple[Rotation, NDArray]]:
     """
     Scan lab rotation axes that maps ori1 onto ori2.
 
@@ -712,14 +704,14 @@ def scan_tilt_axis(
 
 
 def scan_rotation_angles(
-    angles,
-    theta,
-    ori1,
-    ori2,
-    z=0.0,
-    max_angle=None,
-    ax=None,
-):
+    angles: ArrayLike,
+    theta: ArrayLike,
+    ori1: Orientation,
+    ori2: Orientation,
+    z: float = 0.0,
+    max_angle: Optional[float] = None,
+    ax: Optional[Axes] = None,
+) -> Rotation:
     """
     Scan rotation rotation axes that maps ori1 onto ori2.
 
@@ -805,7 +797,12 @@ def scan_rotation_angles(
     return rotvec_to_rotation(rotvec)
 
 
-def compute_angular_distance_matrix(ori1, ori2, rotvec=None, symmetry=symmetry.C1):
+def compute_angular_distance_matrix(
+    ori1: Orientation,
+    ori2: Orientation,
+    rotvec: Optional[Rotation] = None,
+    symmetry: Symmetry = C1,
+) -> NDArray:
     """
     Compute the angular distance (cost) matrix between two sets of
     rotations.
@@ -860,14 +857,18 @@ def compute_angular_distance_matrix(ori1, ori2, rotvec=None, symmetry=symmetry.C
 
 
 def aligned_orientations_residuals(
-    rotvec,
-    ori1,
-    ori2,
-    symmetry=symmetry.C1,
-    max_angle=None,
-    return_indices=False,
-    return_cost=False,
-):
+    rotvec: Union[ArrayLike, Rotation],
+    ori1: Orientation,
+    ori2: Orientation,
+    symmetry: Symmetry = C1,
+    max_angle: Optional[float] = None,
+    return_indices: bool = False,
+    return_cost: bool = False,
+) -> Union[
+    float,
+    Tuple[float, NDArray],
+    Tuple[float, Tuple[NDArray, NDArray], NDArray],
+]:
     """
     Compute the residuals between a set of orientations after rotation.
     Use this objective function with scipy.optimize.minimize.
@@ -962,7 +963,7 @@ def aligned_orientations_residuals(
     return out
 
 
-def rotvec_to_rotation(rv):
+def rotvec_to_rotation(rv: Union[ArrayLike, AxAngle, Rotation]) -> Rotation:
     """Convert rotation vector (scipy, array-like, or orix) to
     orix.quaternion.Rotation."""
     if isinstance(rv, (list, tuple, np.ndarray)):
@@ -978,7 +979,9 @@ def rotvec_to_rotation(rv):
     return ori
 
 
-def calculate_grain_boundary_map(ori, threshold=5, symmetry=symmetry.C1, shift=1):
+def calculate_grain_boundary_map(
+    ori: Orientation, threshold: float = 5.0, symmetry: Symmetry = C1, shift: int = 1
+) -> NDArray[np.bool_]:
     """Calculate grain boundary map based on disorientation threshold
     (in degrees)."""
 
