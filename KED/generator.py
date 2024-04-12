@@ -1,13 +1,14 @@
 from __future__ import annotations
 
+import abc
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Union
+from typing import ClassVar, Optional, Tuple, Union
 
-from diffpy.structure import Structure
 import numpy as np
-from numpy.typing import ArrayLike, DTypeLike
+from diffpy.structure import Structure
+from numpy.typing import ArrayLike, DTypeLike, NDArray
 from orix.crystal_map import Phase
 from orix.quaternion import Orientation, Rotation
 from orix.vector import AxAngle, Vector3d
@@ -38,13 +39,13 @@ from .template import (
 from .utils import DTYPE
 
 
-class DiffractionGeneratorType(Enum):
-    CRYSTAL = 1
-    ATOMIC = 2
+class DiffractionGeneratorType(str, Enum):
+    CRYSTAL = "crystal"
+    ATOMIC = "atomic"
 
 
 @dataclass
-class DiffractionGenerator:
+class DiffractionGenerator(abc.ABC):
     """
     Generic electron diffraction generator.
 
@@ -81,54 +82,64 @@ class DiffractionGenerator:
     n: int = 15
     remove_direct_beam: bool = True
     dtype: DTypeLike = DTYPE
-    # TODO: make arbitrary crystal subclass
+    kind: ClassVar[DiffractionGeneratorType]
 
     @property
     def wavelength(self):
         return electron_wavelength(self.voltage)
 
     @property
-    def hkl(self):
+    def hkl(self) -> NDArray:
         return self._hkl
 
     @hkl.setter
-    def hkl(self, x: ArrayLike):
+    def hkl(self, x: ArrayLike) -> None:
+        x = np.asarray(x)
         if x.shape[-1] != 3:
             raise ValueError(f"x.shape[-1] must be 3, shape is {x.shape}.")
         self._hkl = x
 
     @property
-    def h(self):
+    def h(self) -> NDArray:
         return self.hkl[..., 0]
 
     @property
-    def k(self):
+    def k(self) -> NDArray:
         return self.hkl[..., 1]
 
     @property
-    def l(self):
+    def l(self) -> NDArray:
         return self.hkl[..., 2]
 
     @property
-    def g(self):
+    def g(self) -> NDArray:
         return self._g
 
     @g.setter
-    def g(self, x: ArrayLike):
+    def g(self, x: ArrayLike) -> None:
+        x = np.asarray(x)
         if x.shape[-1] != 3:
             raise ValueError(f"x.shape[-1] must be 3, shape is {x.shape}.")
         self._g = x
 
     @property
-    def reciprocal_vectors(self):
+    def reciprocal_vectors(self) -> NDArray:
         lattice_vectors = get_unit_vectors(self.structure)
         return reciprocal_vectors(*lattice_vectors)
 
-    def is_crystal(self):
+    def __post_init__(self) -> None:
+        if self.kind is not DiffractionGeneratorType.CRYSTAL:
+            raise ValueError(f"{self.kind} kind is currently not supported.")
+        self.structure = parse_structure(self.structure)
+        # determine any abbreviations
+        # do initial computation to filter reflections
+        self.calculate_valid_reflections()
+
+    def is_crystal(self) -> bool:
         """Returns True if if modelling crystal (hkl) diffraction."""
         return self.kind is DiffractionGeneratorType.CRYSTAL
 
-    def filter_reflections_by_scattering_angle(self):
+    def filter_reflections_by_scattering_angle(self) -> None:
         """Calculate maximum scattering angle for all scattering vectors
         and filter those that are greater than max_angle."""
         mask = np.arctan(  # do not care about sign, only value
@@ -138,7 +149,7 @@ class DiffractionGenerator:
 
         self._mask_data(mask)
 
-    def _mask_data(self, mask):
+    def _mask_data(self, mask: NDArray[np.bool_]) -> None:
         """Apply mask (of valid indices) to data arrays that are
         relevant to template generation."""
         self.g = self.g[mask]
@@ -146,7 +157,7 @@ class DiffractionGenerator:
         self.structure_factor = self.structure_factor[mask]
         self.reflection_intensity = self.reflection_intensity[mask]
 
-    def calculate_valid_reflections(self):
+    def calculate_valid_reflections(self) -> None:
         """
         Filter forbidden reflections from all arrays.
         Limit to g vectors which scatter within max_angle.
@@ -179,21 +190,13 @@ class DiffractionGenerator:
             self._mask_data(mask_reflections)
 
         # remove forbidden reflections which have 0 intensity
-        self._mask_data(np.logical_not(np.isclose(self.reflection_intensity, 0)))
+        self._mask_data(~np.isclose(self.reflection_intensity, 0))
         # limit to reflections within scattering angle less than max_angle
         self.filter_reflections_by_scattering_angle()
 
-    def __post_init__(self):
-        if self.kind is not DiffractionGeneratorType.CRYSTAL:
-            raise ValueError(f"{self.kind} kind is currently not implemented.")
-        self.structure = parse_structure(self.structure)
-        # determine any abbreviations
-        # do initial computation to filter reflections
-        self.calculate_valid_reflections()
-
     def remove_duplicate_reflections(
-        self, other: DiffractionGenerator, tolerance: float = 0.01
-    ):
+        self, other: DiffractionGenerator, tolerance: float = 1e-2
+    ) -> None:
         """Remove the set of reflections that are duplicated between
         this instance and another from this instance.
 
@@ -210,7 +213,7 @@ class DiffractionGenerator:
         mask = (dist <= tolerance).any(axis=1)
         self._mask_data(~mask)
 
-    def remove_twinned_reflections(self, misorientation: Rotation):
+    def remove_twinned_reflections(self, misorientation: Rotation) -> None:
         """Remove twinned reflections from the set of valid Bragg
         reflections between misoriented crystals. For FCC metals Σ3
         twins are related by 60° rotation around <111> axis. The set of
@@ -237,7 +240,7 @@ class DiffractionGenerator:
         # remove them
         self._mask_data(~mask)
 
-    def _remove_twinned_reflections_old(self, axis):
+    def _remove_twinned_reflections_old(self, axis: ArrayLike) -> None:
         """Remove twinned reflections from the set of valid Bragg
         reflections between misoriented crystals. For FCC metals Σ3
         twins are related by 60° rotation around <111> axis. The set of
@@ -300,7 +303,7 @@ class DiffractionGenerator:
         norm: DiffractionTemplateExcitationErrorNorm = DiffractionTemplateExcitationErrorNorm.NORM,
         flip: bool = True,
         dtype: DTypeLike = DTYPE,
-    ):
+    ) -> Union[DiffractionTemplate, DiffractionTemplateBlock]:
         """
         Simulate diffraction and generate resulting template.
 
@@ -386,7 +389,7 @@ class DiffractionGenerator:
             )
         return out
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__} "
             + f"{self.structure.composition}, "
@@ -406,14 +409,14 @@ class DiffractionGenerator:
     def refine_template(
         self,
         template: DiffractionTemplate,
-        image: ArrayLike,
+        image: NDArray,
         pixel_size: float,
         center: ArrayLike,
         num: int = 360,
         return_correlation_indices: bool = False,
-        max_misorientation: Union[float, None] = None,
+        max_misorientation: Optional[float] = None,
         **kwargs,
-    ) -> DiffractionTemplate:
+    ) -> Union[DiffractionTemplate, Tuple[float, float]]:
         """
         Refine a template by maximizing its Correlation Index locally.
 
@@ -449,7 +452,14 @@ class DiffractionGenerator:
         """
         center = np.asarray(center)
 
-        def err(x, template, image, pixel_size, center, num):
+        def err(
+            x: NDArray,
+            template: DiffractionTemplate,
+            image: NDArray,
+            pixel_size: NDArray,
+            center: NDArray,
+            num: int,
+        ):
             temp = self.generate_templates(
                 Orientation.from_neo_euler(AxAngle(x)),
                 template.s_max,
@@ -476,11 +486,11 @@ class DiffractionGenerator:
         if max_misorientation is not None:
             kwargs.setdefault("method", "COBYLA")
 
-            def limit_misorientation(x, init, _max):
+            def limit_misorientation(x: NDArray, init: NDArray, limit: float):
                 o1 = Orientation.from_neo_euler(AxAngle(x))
                 o2 = Orientation.from_neo_euler(AxAngle(init))
                 misori = o2 * ~o1
-                return _max - misori.angle.data
+                return limit - misori.angle.data
 
             constraint = dict(
                 type="ineq",
@@ -580,10 +590,10 @@ class DiffractionGenerator:
 
     def generate_template_block(
         self,
-        grid: Union[None, ArrayLike] = None,
-        xrange: Union[None, ArrayLike] = None,
-        yrange: Union[None, ArrayLike] = None,
-        zrange: Union[None, ArrayLike] = None,
+        grid: Optional[ArrayLike] = None,
+        xrange: Optional[ArrayLike] = None,
+        yrange: Optional[ArrayLike] = None,
+        zrange: Optional[ArrayLike] = None,
         num: int = None,
         supersampling: int = 1,
         s_max: float = S_MAX,
@@ -594,7 +604,7 @@ class DiffractionGenerator:
         flip: bool = True,
         dtype: DTypeLike = DTYPE,
         progressbar: bool = True,
-    ):
+    ) -> Union[DiffractionTemplateBlock, DiffractionTemplateBlockSuperSampled]:
         """
         Generate a supersampled diffraction template grid.
         Each grid large grid point contains supersampling finer grid
@@ -726,7 +736,7 @@ class DiffractionGenerator:
         norm: DiffractionTemplateExcitationErrorNorm = DiffractionTemplateExcitationErrorNorm.NORM,
         flip: bool = True,
         dtype: DTypeLike = DTYPE,
-    ):
+    ) -> DiffractionTemplateBlock:
         """
         Generate a template block.
         Templates are generated in a grid along two directions.

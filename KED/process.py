@@ -2,9 +2,11 @@ from collections.abc import Callable
 import itertools
 import logging
 import math
+from typing import Generator, List, Literal, Optional, Tuple, Union
 
 import h5py
 import numpy as np
+from numpy.typing import ArrayLike, DTypeLike, NDArray
 from scipy import ndimage
 from scipy.spatial import cKDTree
 from skimage import feature
@@ -20,15 +22,15 @@ from .utils import (
 
 
 def virtual_reconstruction(
-    data,
-    coords,
-    template_intensities=None,
-    normP=False,
-    normT=False,
-    sum=True,
-    fn=None,
-    dtype=DTYPE,
-):
+    data: Union[NDArray, Generator[NDArray, None, None]],
+    coords: NDArray,
+    template_intensities: Optional[NDArray] = None,
+    normP: bool = False,
+    normT: bool = False,
+    sum: bool = True,
+    fn: Optional[Callable] = None,
+    dtype: DTypeLike = DTYPE,
+) -> NDArray:
     """
     Compute a Frozen Template Virtual Reconstruction.
 

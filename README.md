@@ -4,7 +4,6 @@ Scripts to simulate Kinematic Electron Diffraction and perform Virtual Reconstru
 
 ### References
 [1] Rauch, Harrison, Zhou, Herbig, Ludwig, Véron, Symmetry, 13(9), 1675 (2021), https://doi.org/10.3390/sym13091675
-
 [2] Harrison, Zhou, Das, Lhuissier, Liebscher, Herbig, Ludwig, Rauch, Ultramicroscopy 238, 113536 (2022), https://doi.org/10.1016/j.ultramic.2022.113536
 
 ### Funding

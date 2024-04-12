@@ -1,12 +1,13 @@
 from itertools import product
 from pathlib import Path
-from typing import Tuple, Union
+from typing import List, Literal, Optional, Tuple, Union
 
 from matplotlib import pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 from ncempy.io import mrc
 import numba
 import numpy as np
-from numpy.typing import ArrayLike, DTypeLike
+from numpy.typing import ArrayLike, DTypeLike, NDArray
 from orix.quaternion import symmetry as osymmetry
 from orix.vector import AxAngle, Vector3d
 import pandas as pd
@@ -18,10 +19,10 @@ from scipy.spatial.transform import Rotation
 DTYPE = np.float32
 
 
-def calculate_zone_axis(ori, n=15):
+def calculate_zone_axis(rot: Rotation, n: int = 15) -> Tuple[Vector3d, float]:
     """Return approximate Z zone axis and misorientation (in radians)."""
     # find the vector which maps to z after rotation
-    z = (~ori * Vector3d.zvector()).data
+    z = (~rot * Vector3d.zvector()).data
     # the smallest factor should be a multiple of the smallest component
     z_min = np.abs(z).min()
     z_arr = z / z_min
@@ -35,20 +36,22 @@ def calculate_zone_axis(ori, n=15):
     # find best rounded axis
     axis = Vector3d(mult_rounded[err.argmin()])
     # get the misorientation between rounded axis and z
-    dp = np.dot((ori * axis).unit.data.ravel(), Vector3d.zvector().unit.data.ravel())
+    dp = np.dot((rot * axis).unit.data.ravel(), Vector3d.zvector().unit.data.ravel())
     misori = np.arccos(dp)
 
     return axis, misori
 
 
-def generate_thetas(num, min=0, max=2.0 * np.pi):
+def generate_thetas(num: int, min: float = 0, max: float = 2.0 * np.pi) -> NDArray:
     """Convenience function to generate theta array with a defined
     number of points.
     """
     return np.linspace(min, max, num, endpoint=False)
 
 
-def get_image_center(shape, center=None):
+def get_image_center(
+    shape: Tuple[int, int], center: Optional[Tuple[int, int]] = None
+) -> NDArray:
     """Get image center from a given shape.
 
     Parameters
@@ -64,16 +67,15 @@ def get_image_center(shape, center=None):
     center: (2,) ndarray
         The center of the image.
     """
+    if center is not None:
+        return center
+    shape = np.array(shape)
     if len(shape) != 2:
         raise ValueError("Shape must have length 2.")
-    if center is None:
-        center = (np.asarray(shape) - 1) / 2
-    if len(center) != 2:
-        raise ValueError("Center must have length 2.")
-    return np.asarray(center)
+    return (shape - 1) / 2
 
 
-def fibonacci_sphere_angular_resolution_to_n(resolution):
+def fibonacci_sphere_angular_resolution_to_n(resolution: float) -> int:
     """
     Calculate approximate number of points needed to generate a
     fibonacci sphere with the desired angular resolution.
@@ -99,7 +101,9 @@ def fibonacci_sphere_angular_resolution_to_n(resolution):
     return int(10**n)
 
 
-def fibonacci_sphere(n=None, res=None, offset=0.5):
+def fibonacci_sphere(
+    n: Optional[int] = None, res: Optional[float] = None, offset: float = 0.5
+) -> NDArray:
     """
     Produce n points approximately evenly spaced on a sphere.
 
@@ -142,7 +146,12 @@ def fibonacci_sphere(n=None, res=None, offset=0.5):
     )
 
 
-def get_orientations_standard_triangle(res=1, v1=(0, 0, 1), v2=(1, 0, 1), v3=(1, 1, 1)):
+def get_orientations_standard_triangle(
+    res: float = 1,
+    v1: ArrayLike = (0, 0, 1),
+    v2: ArrayLike = (1, 0, 1),
+    v3: ArrayLike = (1, 1, 1),
+) -> Rotation:
     """
     Return approximately evenly spaced orientations within the standard
     triangle.
@@ -198,7 +207,14 @@ def get_orientations_standard_triangle(res=1, v1=(0, 0, 1), v2=(1, 0, 1), v3=(1,
     return Rotation.from_rotvec((rot.T * angle).T)
 
 
-def plot_solution_grid(ax, soln, skew, grid_range, n, cmap=plt.cm.plasma):
+def plot_solution_grid(
+    ax: Axes3D,
+    soln: NDArray,
+    skew: NDArray,
+    grid_range: float,
+    n: int,
+    cmap: plt.cm.ScalarMappable = plt.cm.plasma,
+):
     """
     Plot 3D orientation solution grid on axes.
 
@@ -241,12 +257,13 @@ def plot_solution_grid(ax, soln, skew, grid_range, n, cmap=plt.cm.plasma):
         color="b",
         label=f"CoM: {tuple(round(j, 3) for j in CoM / n * 2 * grid_range - grid_range)}",
     )
-    ax.scatter(*CoM + 0.5, edgecolor="blue", fc="None", s=1000)
-
+    ax.scatter(*CoM + 0.5, edgecolor="blue", fc="None", s=1_000)
     ax.legend(loc="lower right")
 
 
-def create_VR_crystal_map(files, kind="max"):
+def create_VR_crystal_map(
+    files: List[Union[str, Path]], kind: Literal["max", "sum"] = "max"
+) -> NDArray:
     """
     Use many virtually reconstructed files to create an overall crystal
     map.
@@ -272,7 +289,7 @@ def create_VR_crystal_map(files, kind="max"):
     for i, f in enumerate(files):
         # open files
         _mrc = mrc.mrcReader(f)
-        _data = _mrc["data"]
+        _data: NDArray = _mrc["data"]
         # scale data by max per frame
         _data = (_data.T / _data.max(axis=(-2, -1))).T
         # accumulate data
@@ -290,7 +307,7 @@ def create_VR_crystal_map(files, kind="max"):
     return data
 
 
-def read_links(fname):
+def read_links(fname: Union[str, Path]) -> Tuple[pd.DataFrame, dict]:
     """
     Read a link file generated by 3D-SPED.
 
@@ -332,7 +349,7 @@ def read_links(fname):
     return pd.read_csv(Path(fname), skiprows=i, delimiter="\t"), header
 
 
-def get_series_name(fname):
+def get_series_name(fname: Union[str, Path]) -> str:
     """
     Attempt to retrieve base series name from an ASTAR file.
     Various filename extensions will be removed.
@@ -367,7 +384,9 @@ def get_series_name(fname):
     return base.strip()
 
 
-def get_angle_from_series_name(fname, delimiter="_"):
+def get_angle_from_series_name(
+    fname: Union[str, Path], delimiter: str = "_"
+) -> Optional[float]:
     """Attempt to get angle from series name.
 
     This is based on a TVIPS file naming system,
@@ -405,7 +424,7 @@ def get_angle_from_series_name(fname, delimiter="_"):
     return val
 
 
-def load_state(fname, parse_values=True):
+def load_state(fname: Union[str, Path], parse_values: bool = True) -> dict:
     """
     Load a .tltstate file.
 
@@ -529,7 +548,9 @@ def load_state(fname, parse_values=True):
     return out
 
 
-def get_angle_from_filename(fname: Union[str, Path], delimiter: str = " "):
+def get_angle_from_filename(
+    fname: Union[str, Path], delimiter: str = " "
+) -> Optional[float]:
     """
     Work out tilt angle from file name.
     Handles typical suffixes from data acquisition 'm, p, C' etc.
@@ -576,13 +597,19 @@ def get_angle_from_filename(fname: Union[str, Path], delimiter: str = " "):
 
 
 @numba.njit
-def _unravel_index_2d(index, shape):
+def _unravel_index_2d(index: int, shape: Tuple[int, int]) -> Tuple[int, int]:
     """Unravel flat index into 2D index within shape."""
     return (index // shape[1], index % shape[1])
 
 
 @numba.njit
-def _refine_reflection_positions_locally(coords, image, half_width, mask, out):
+def _refine_reflection_positions_locally(
+    coords: NDArray,
+    image: NDArray,
+    half_width: int,
+    mask: NDArray[np.bool_],
+    out: NDArray,
+) -> None:
     """Locally adjust reflection positions."""
     for i, coord in enumerate(coords):
         if not mask[i]:
@@ -597,7 +624,9 @@ def _refine_reflection_positions_locally(coords, image, half_width, mask, out):
         out[i] = np.array(_unravel_index_2d(index, region.shape)) - half_width + coord
 
 
-def refine_reflection_positions_locally(coords, image, width=5):
+def refine_reflection_positions_locally(
+    coords: NDArray, image: NDArray, width: int = 5
+) -> NDArray:
     """Locally refine individual reflection positions based on peaks in image.
 
     Parameters
@@ -626,7 +655,7 @@ def refine_reflection_positions_locally(coords, image, width=5):
     return out
 
 
-def check_bounds_coords(coords, shape, buffer=0):
+def check_bounds_coords(coords: NDArray, shape: Tuple[int, int], buffer: int = 0):
     """
     Convenience function to return mask of which coords are within array
     bounds (shape).
@@ -646,12 +675,16 @@ def check_bounds_coords(coords, shape, buffer=0):
         True where coords is safely within bounds, False otherwise.
 
     """
-    l1 = coords >= 0 + buffer
-    l2 = coords < np.asarray(shape) - buffer
+    l1 = coords >= (0 + buffer)
+    l2 = coords < (np.asarray(shape) - buffer)
     return np.logical_and(l1, l2).all(axis=-1)
 
 
-def add_floats_to_array(arr, coords, values=None):
+def add_floats_to_array(
+    arr: NDArray,
+    coords: NDArray,
+    values: Optional[NDArray] = None,
+) -> None:
     """
 
     Distribute float values around neighbouring pixels in array whilst
@@ -697,7 +730,7 @@ def add_floats_to_array(arr, coords, values=None):
 
 
 @numba.njit
-def _add_floats_to_array_2d(arr, coords, values):
+def _add_floats_to_array_2d(arr: NDArray, coords: NDArray, values: NDArray) -> None:
     """
 
     Distribute float values around neighbouring pixels in array whilst
@@ -730,7 +763,12 @@ def _add_floats_to_array_2d(arr, coords, values):
         )
 
 
-def index_array_with_floats(arr, coords, mask=None, default=np.nan):
+def index_array_with_floats(
+    arr: NDArray,
+    coords: NDArray,
+    mask: Optional[NDArray[np.bool_]] = None,
+    default: float = np.nan,
+) -> NDArray:
     """
     Use float coordinates to index an array. Values are computed using
     the center of mass from neighbouring pixels. This function will work
@@ -780,7 +818,12 @@ def index_array_with_floats(arr, coords, mask=None, default=np.nan):
     return out
 
 
-def _index_array_with_floats_nd(arr, coords, out, mask):
+def _index_array_with_floats_nd(
+    arr: NDArray,
+    coords: NDArray,
+    out: NDArray,
+    mask: NDArray[np.bool_],
+) -> None:
     """
     Return the center of mass interpolated values of float indices
     within an array. Uses Manhattan (taxicab) distances for center of
@@ -820,7 +863,12 @@ def _index_array_with_floats_nd(arr, coords, out, mask):
 
 
 @numba.njit
-def _index_array_with_floats_2d(arr, coords, out, mask):
+def _index_array_with_floats_2d(
+    arr: NDArray,
+    coords: NDArray,
+    out: NDArray,
+    mask: NDArray[np.bool_],
+) -> None:
     """
     Return the center of mass interpolated values of float indices
     within an array. Uses Manhattan (taxicab) distances for center of
@@ -858,7 +906,7 @@ def _index_array_with_floats_2d(arr, coords, out, mask):
         out[i] = (local * temp).sum() / temp.sum()  # weighted average
 
 
-def add_poisson_noise(arr: ArrayLike, lam: float, factor: float = 1.0) -> ArrayLike:
+def add_poisson_noise(arr: NDArray, lam: float, factor: float = 1.0) -> NDArray:
     """
     Add Poisson noise to an array. A larger lambda value equates to more
     noise. Lambda is subtracted after the noise is applied to keep the
@@ -884,9 +932,9 @@ def add_poisson_noise(arr: ArrayLike, lam: float, factor: float = 1.0) -> ArrayL
 
 
 def bin_box(
-    arr: ArrayLike,
+    arr: NDArray,
     factor: int,
-    axis: Union[None, int, Tuple] = None,
+    axis: Optional[Union[int, Tuple]] = None,
     dtype: Union[DTypeLike, bool] = False,
 ) -> ArrayLike:
     """

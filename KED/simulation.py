@@ -1,14 +1,16 @@
 from typing import Callable, Union
 
 import numpy as np
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, DTypeLike, NDArray
 from scipy import ndimage, signal
 from skimage import draw, morphology
 
 from .utils import DTYPE
 
 
-def kernel_blurred_disk(radius, sigma, ndim=2, dtype=DTYPE):
+def kernel_blurred_disk(
+    radius: int, sigma: float, ndim: int = 2, dtype: DTypeLike = DTYPE
+) -> NDArray:
     """
     Simulate a blurred disk kernel.
 
@@ -45,8 +47,11 @@ def kernel_blurred_disk(radius, sigma, ndim=2, dtype=DTYPE):
 
 
 def apply_point_spread_function(
-    arr: ArrayLike, kernel: Union[ArrayLike, Callable], mode="same", positive=True
-):
+    arr: ArrayLike,
+    kernel: Union[ArrayLike, Callable],
+    mode: str = "same",
+    positive: bool = True,
+) -> NDArray:
     """
 
     Apply point spread function (PSF) to an array.

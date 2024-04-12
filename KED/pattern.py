@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Tuple, Union
+from typing import Literal, Optional, Tuple, Union
 
+import numpy as np
 from ipywidgets import Checkbox, IntSlider, interactive
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
-import numpy as np
-from numpy.typing import ArrayLike, DTypeLike
-from orix.quaternion import Quaternion
+from numpy.typing import ArrayLike, DTypeLike, NDArray
+from orix.quaternion import Orientation
 
 from .rotation import generate_rotated_template
 from .simulation import apply_point_spread_function
@@ -22,34 +22,36 @@ class DiffractionPattern:
     Attribute .image accesses the simulated diffraction pattern.
     """
 
-    image: np.ndarray
+    image: NDArray
     shape: Tuple
     pixel_size: float
     center: ArrayLike
     psf: float
-    orientation: Quaternion
+    orientation: Orientation
     direct_beam: bool
     center_of_mass_coordinates: bool
     scale_disks: bool
 
     @property
-    def dtype(self):
+    def dtype(self) -> DTypeLike:
         return self.image.dtype
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__} {self.shape}"
 
-    def plot(self, ax: Union[Axes, None] = None, unit: str = "data", **kwargs):
+    def plot(
+        self,
+        ax: Optional[Axes] = None,
+        unit: Literal["data", "pixels"] = "data",
+        **kwargs,
+    ) -> None:
         """Plot diffraction pattern on axes."""
         if ax is None:
             fig, ax = plt.subplots()
 
         kwargs.setdefault("cmap", "inferno")
 
-        units = ("data", "pixels")
-        assert unit.lower() in units, f"unit must be one of {units}."
-
-        if unit.lower() == units[0]:
+        if unit.lower() == "data":
             ymin, xmin = tuple(-(0.5 + c) * self.pixel_size for c in self.center)
             ymax, xmax = tuple(
                 (s - 0.5 - c) * self.pixel_size for s, c in zip(self.shape, self.center)
@@ -57,9 +59,10 @@ class DiffractionPattern:
             extent = (xmin, xmax, ymin, ymax)
             ax.set_xlabel("$\AA$")
             ax.set_ylabel("$\AA$")
-
-        if unit.lower() == units[1]:
+        elif unit.lower() == "pixels":
             extent = None
+        else:
+            raise ValueError(f"unit must be one of 'data' or 'pixels'")
 
         ax.matshow(self.image, extent=extent, **kwargs)
 
@@ -69,7 +72,7 @@ class DiffractionPattern:
         g: ArrayLike,
         intensity: ArrayLike,
         shape: Tuple,
-        orientation: Quaternion,
+        orientation: Orientation,
         pixel_size: float,
         center: Union[ArrayLike, None] = None,
         psf: Union[float, ArrayLike] = 0,
@@ -210,47 +213,47 @@ class DiffractionPatternBlock:
     diffraction patterns.
     """
 
-    data: np.ndarray
+    data: NDArray
     pixel_size: float
-    center: Union[ArrayLike, None]
-    orientations: Quaternion
+    center: Optional[ArrayLike]
+    orientations: Orientation
     psf: float
     direct_beam: bool
     center_of_mass_coordinates: bool
     scale_disks: bool
 
     @property
-    def shape(self):
+    def shape(self) -> Tuple[int, int]:
         return self.data.shape[:-2]
 
     @property
-    def ndim(self):
+    def ndim(self) -> int:
         return len(self.shape)
 
     @property
-    def pattern_shape(self):
+    def pattern_shape(self) -> Tuple[int, int]:
         return self.data.shape[-2:]
 
     @property
-    def size(self):
+    def size(self) -> int:
         return np.prod(self.shape)
 
     @property
-    def dtype(self):
+    def dtype(self) -> DTypeLike:
         return self.data.dtype
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.__class__.__name__} {self.shape}"
 
-    def __getitem__(self, indices):
+    def __getitem__(self, indices) -> NDArray:
         return self.data[indices]
 
     @property
-    def A(self):
+    def A(self) -> NDArray:
         """Generate A matrix for matrix decomposition."""
         return self.data.reshape(-1, np.prod(self.pattern_shape)).T
 
-    def plot(self, ax: Union[Axes, None] = None, cmap: str = "inferno"):
+    def plot(self, ax: Optional[Axes] = None, cmap: str = "inferno") -> interactive:
         """Interactive plot."""
         if ax is None:
             fig, ax = plt.subplots()
@@ -268,7 +271,7 @@ class DiffractionPatternBlock:
 
         return out
 
-    def _plot1d(self, ax: Axes, cmap: str):
+    def _plot1d(self, ax: Axes, cmap: str) -> interactive:
         """Backend ndim=1 interactive plot."""
         ai = ax.matshow(self.data[0], cmap=cmap)
 
@@ -283,7 +286,7 @@ class DiffractionPatternBlock:
             clim=Checkbox(True, description="Auto clim?"),
         )
 
-    def _plot2d(self, ax: Axes, cmap: str):
+    def _plot2d(self, ax: Axes, cmap: str) -> interactive:
         """Backend ndim=2 interactive plot."""
         ai = ax.matshow(self.data[0, 0], cmap=cmap)
 
@@ -299,7 +302,7 @@ class DiffractionPatternBlock:
             clim=Checkbox(True, description="Auto clim?"),
         )
 
-    def _plot3d(self, ax: Axes, cmap: str):
+    def _plot3d(self, ax: Axes, cmap: str) -> interactive:
         """Backend ndim=3 interactive plot."""
         ai = ax.matshow(self.data[0, 0, 0], cmap=cmap)
 

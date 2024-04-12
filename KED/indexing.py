@@ -1,5 +1,6 @@
 import numba
 import numpy as np
+from numpy.typing import DTypeLike, NDArray
 
 from .rotation import generate_rotated_template
 from .utils import DTYPE, _index_array_with_floats_2d
@@ -7,17 +8,17 @@ from .utils import DTYPE, _index_array_with_floats_2d
 
 @numba.njit(parallel=True)
 def _scan_azimuthal_rotations(
-    coords,
-    image,
-    pixel_size,
-    center,
-    thetas,
-    T,
-    out,
-    float_coords=False,
-    norm_P=False,
-    norm_T=False,
-):
+    coords: NDArray,
+    image: NDArray,
+    pixel_size: float,
+    center: NDArray,
+    thetas: NDArray,
+    T: NDArray,
+    out: NDArray,
+    float_coords: bool = False,
+    norm_P: bool = False,
+    norm_T: bool = False,
+) -> None:
     """
     Calculate the correlation index for a set of rotations for a given template.
 
@@ -27,7 +28,7 @@ def _scan_azimuthal_rotations(
         The simulated diffraction template coordinates (ij) in 1/Angstrom.
     image: (P, M) ndarray
         The experimental diffraction pattern to index.
-        pixel_size: float
+    pixel_size: float
         The pixel sizes of the image in 1/Angstrom.
     center: (2,) array-like
         The direct beam coodinates of the image (ij).
@@ -76,7 +77,13 @@ def _scan_azimuthal_rotations(
 
 
 @numba.njit
-def _calculate_correlation_index(P, T, norm_P=True, norm_T=True, dtype=DTYPE):
+def _calculate_correlation_index(
+    P: NDArray,
+    T: NDArray,
+    norm_P: bool = True,
+    norm_T: bool = True,
+    dtype: DTypeLike = DTYPE,
+) -> float:
     """
     Compute and normalise the correlation index.
 
@@ -113,7 +120,7 @@ def _calculate_correlation_index(P, T, norm_P=True, norm_T=True, dtype=DTYPE):
 
 
 @numba.njit(parallel=True)
-def round_numba(arr, out):
+def round_numba(arr: NDArray, out: NDArray) -> None:
     # rounded = np.round(arr)
     for i in numba.prange(len(arr)):
         out[i] = int(round(arr[i]))
@@ -121,16 +128,16 @@ def round_numba(arr, out):
 
 @numba.njit(parallel=True)
 def _scan_pixel_sizes(
-    coords,
-    image,
-    center,
-    pixel_sizes,
-    thetas,
-    T,
-    out,
-    norm_P=False,
-    norm_T=True,
-    float_coords=False,
+    coords: NDArray,
+    image: NDArray,
+    center: NDArray,
+    pixel_sizes: NDArray,
+    thetas: NDArray,
+    T: NDArray,
+    out: NDArray,
+    float_coords: bool = False,
+    norm_P: bool = False,
+    norm_T: bool = False,
 ):
     """
     Compute the best correlation index from a range of pixel sizes.

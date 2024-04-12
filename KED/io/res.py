@@ -1,10 +1,13 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 import logging
 from pathlib import Path
-from typing import ClassVar, List, Union
+from typing import ClassVar, List, Tuple, Union
 
 from matplotlib import pyplot as plt
 import numpy as np
+from numpy.typing import NDArray
 import orix
 from orix.quaternion.orientation import Orientation
 from packaging import version
@@ -18,14 +21,14 @@ class ANG:
     file: Union[str, Path]
     data: pd.DataFrame
     header: dict
-    shape: tuple  # in ij rather than xy
-    pixel_size: tuple
+    shape: Tuple[int, int]  # in ij rather than xy
+    pixel_size: Tuple[float, float]
     angle_keys: ClassVar[List] = ["psi1", "phi", "psi2"]
 
     def __post_init__(self):
         self.file = Path(self.file)
 
-    def generate_image(self, key):
+    def generate_image(self, key: str) -> NDArray:
         """
         Convenience function to reshape a signal.
 
@@ -42,7 +45,7 @@ class ANG:
 
         return self.data[key].values.reshape(self.shape)
 
-    def plot(self, key, ax=None):
+    def plot(self, key: str, ax: plt.Axes = None) -> None:
         """
         Convenience plotting function.
 
@@ -59,19 +62,19 @@ class ANG:
         ax.matshow(self.generate_image(key))
 
     @property
-    def mask(self):
+    def mask(self) -> NDArray:
         """Valid values mask. Invalid values have -ve index score."""
         return self.index >= 0
 
     @property
-    def angles(self):
+    def angles(self) -> NDArray:
         """Return the Euler angles in radians."""
         return self.data[self.angle_keys].values.reshape(
             *self.shape, len(self.angle_keys)
         )
 
     @property
-    def orientations(self):
+    def orientations(self) -> Orientation:
         """Return the Euler angles as orix.quaternion.Orientation in
         'lab2crystal' reference frame, ie. Bunge convention."""
         # handle bug in orix
@@ -122,11 +125,11 @@ class ANG:
         return f"{self.__class__} {self.shape}: {self.file.stem}"
 
     @classmethod
-    def from_file(cls, fname):
+    def from_file(cls, fname: Union[str, Path]):
         return cls.read_file(fname)
 
     @classmethod
-    def read_file(cls, fname):
+    def read_file(cls, fname: Union[str, Path]) -> ANG:
         """
 
         Read .ang file produced by ASTAR MapViewer.
@@ -148,7 +151,6 @@ class ANG:
         header = dict()
 
         with open(fname, "r") as f:
-
             same_phase = False
 
             for count, line in enumerate(f):

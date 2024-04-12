@@ -1,19 +1,28 @@
 import logging
 from pathlib import Path
+from typing import Optional, Union
 
-from ase.data import atomic_numbers, chemical_symbols
+from ase import Atom as aseAtom
+from ase.data import atomic_numbers
+from diffpy.structure import Atom as diffpyAtom
+from diffpy.structure import Structure
 import numpy as np
+from numpy.typing import ArrayLike, DTypeLike, NDArray
 import pandas as pd
 from scipy.constants import Planck, angstrom, electron_mass, electron_volt, epsilon_0
 
 from .structure import get_element_name, get_positions
 from .utils import DTYPE
 
-# define default maximum excitation error
-S_MAX = 0.1
+S_MAX = 0.1  # maximum excitation error
+
+ATOMIC_SCATTERING_FACTORS = None
+ATOMIC_SCATTERING_FACTORS_XRAY = None
+DEBYE_WALLER_SCATTERING_FACTORS_LESS_THAN_80K = None
+DEBYE_WALLER_SCATTERING_FACTORS_GREATER_THAN_80K = None
 
 
-def read_atomic_scattering_factors():
+def get_atomic_scattering_factors() -> pd.DataFrame:
     """
     Load atomic scattering factors database.
 
@@ -23,16 +32,17 @@ def read_atomic_scattering_factors():
     -----
     [1] Electron atomic scattering factors and scattering potentials of
     crystals, L M Peng. DOI: 10.1016/S0968-4328(99)00033-5
-
     """
+    global ATOMIC_SCATTERING_FACTORS
 
-    path = Path(__file__).parent.joinpath("data", "atomic_scattering_factors.txt")
-    return pd.read_csv(path)
+    if ATOMIC_SCATTERING_FACTORS is None:
+        path = Path(__file__).parent.joinpath("data", "atomic_scattering_factors.txt")
+        ATOMIC_SCATTERING_FACTORS = pd.read_csv(path)
+    return ATOMIC_SCATTERING_FACTORS
 
 
-def read_atomic_scattering_factors_xray():
+def get_atomic_scattering_factors_xray() -> pd.DataFrame:
     """
-
     Load xray atomic scattering factors database.
 
     Data from paper [1].
@@ -41,33 +51,18 @@ def read_atomic_scattering_factors_xray():
     -----
     [1] International Tables for Crystallography: DOI: 10.1107/97809553602060000600
     [2] http://lampx.tugraz.at/~hadley/ss1/crystaldiffraction/atomicformfactors/formfactors.php
-
     """
+    global ATOMIC_SCATTERING_FACTORS_XRAY
 
-    path = Path(__file__).parent.joinpath("data", "atomic_scattering_factors_xray.txt")
-    return pd.read_csv(path, delimiter="\s+", skiprows=2)
-
-
-# load once globally for the rest of the file
-ATOMIC_SCATTERING_FACTORS = read_atomic_scattering_factors()
-ATOMIC_SCATTERING_FACTORS_XRAY = read_atomic_scattering_factors_xray()
-
-
-def read_debye_waller_factors_less_than_80K():
-    """
-    Read Debye-Waller factors which have been parameterized.
-
-    Notes
-    -----
-    [1] Gao, H. X. & Peng, L.-M. (1999). Acta Cryst. A55, 926-932.
-        DOI: 10.1107/S0108767399005176
-
-    """
-    path = Path(__file__).parent.joinpath("data", "debye-waller_factors_80K-.txt")
-    return pd.read_csv(path, delimiter="\s+", skiprows=1)
+    if ATOMIC_SCATTERING_FACTORS_XRAY is None:
+        path = Path(__file__).parent.joinpath(
+            "data", "atomic_scattering_factors_xray.txt"
+        )
+        ATOMIC_SCATTERING_FACTORS_XRAY = pd.read_csv(path, delimiter="\s+", skiprows=2)
+    return ATOMIC_SCATTERING_FACTORS_XRAY
 
 
-def read_debye_waller_factors_greater_than_80K():
+def get_debye_waller_factors_less_than_80K() -> pd.DataFrame:
     """
     Read Debye-Waller factors which have been parameterized.
 
@@ -75,22 +70,41 @@ def read_debye_waller_factors_greater_than_80K():
     -----
     [1] Gao, H. X. & Peng, L.-M. (1999). Acta Cryst. A55, 926-932.
         DOI: 10.1107/S0108767399005176
-
     """
-    path = Path(__file__).parent.joinpath("data", "debye-waller_factors_80K+.txt")
-    return pd.read_csv(path, delimiter="\s+", skiprows=1)
+    global DEBYE_WALLER_SCATTERING_FACTORS_LESS_THAN_80K
+
+    if DEBYE_WALLER_SCATTERING_FACTORS_LESS_THAN_80K is None:
+        path = Path(__file__).parent.joinpath("data", "debye-waller_factors_80K-.txt")
+        DEBYE_WALLER_SCATTERING_FACTORS_LESS_THAN_80K = pd.read_csv(
+            path, delimiter="\s+", skiprows=1
+        )
+    return DEBYE_WALLER_SCATTERING_FACTORS_LESS_THAN_80K
 
 
-# load once globally for the rest of the file
-DEBYE_WALLER_SCATTERING_FACTORS_LESS_THAN_80K = (
-    read_debye_waller_factors_less_than_80K()
-)
-DEBYE_WALLER_SCATTERING_FACTORS_GREATER_THAN_80K = (
-    read_debye_waller_factors_greater_than_80K()
-)
+def get_debye_waller_factors_greater_than_80K() -> pd.DataFrame:
+    """
+    Read Debye-Waller factors which have been parameterized.
+
+    Notes
+    -----
+    [1] Gao, H. X. & Peng, L.-M. (1999). Acta Cryst. A55, 926-932.
+        DOI: 10.1107/S0108767399005176
+    """
+    global DEBYE_WALLER_SCATTERING_FACTORS_GREATER_THAN_80K
+
+    if DEBYE_WALLER_SCATTERING_FACTORS_GREATER_THAN_80K is None:
+        path = Path(__file__).parent.joinpath("data", "debye-waller_factors_80K+.txt")
+        DEBYE_WALLER_SCATTERING_FACTORS_GREATER_THAN_80K = pd.read_csv(
+            path, delimiter="\s+", skiprows=1
+        )
+    return DEBYE_WALLER_SCATTERING_FACTORS_GREATER_THAN_80K
 
 
-def calculate_debye_waller_factor(element, T=293.0, structure=None):
+def calculate_debye_waller_factor(
+    element: Union[aseAtom, diffpyAtom, str, int],
+    T: float = 293.0,
+    structure: Optional[str] = None,
+) -> float:
     """
     Calculate the Debye-Waller factor B for an element at temperature T.
 
@@ -113,9 +127,9 @@ def calculate_debye_waller_factor(element, T=293.0, structure=None):
 
     """
     if T <= 80:
-        factors = DEBYE_WALLER_SCATTERING_FACTORS_LESS_THAN_80K
+        factors = get_debye_waller_factors_less_than_80K()
     else:
-        factors = DEBYE_WALLER_SCATTERING_FACTORS_GREATER_THAN_80K
+        factors = get_debye_waller_factors_greater_than_80K()
 
     # get element name as str
     element = get_element_name(element)
@@ -127,10 +141,11 @@ def calculate_debye_waller_factor(element, T=293.0, structure=None):
     if structure is not None:
         row = row[row["Structure"].str.lower() == structure.lower()]
 
-    if not len(row):
+    n = len(row)
+    if not n:
         temp = {structure if structure is not None else "Any"}
         raise ValueError(f"{element} with structure {temp} not found in database.")
-    if not len(row) == 1:
+    elif n > 1:
         logging.error(
             f"Multiple element with name {element} found in database: "
             + f"using first input.\n{row}"
@@ -142,7 +157,11 @@ def calculate_debye_waller_factor(element, T=293.0, structure=None):
     return B
 
 
-def mott_bethe_approximation(fx, Z, q):
+def mott_bethe_approximation(
+    fx: Union[float, NDArray],
+    Z: int,
+    q: Union[float, NDArray],
+) -> Union[float, NDArray]:
     """
     Apply the Mott-Bethe approximation to xray atomic scattering factors
     to compute electron scattering factors.
@@ -172,7 +191,12 @@ def mott_bethe_approximation(fx, Z, q):
     return A * (Z - fx) / q**2
 
 
-def calculate_scattering_factor(element, q, use_xray=False, dtype=DTYPE):
+def calculate_scattering_factor(
+    element: Union[aseAtom, diffpyAtom, str, int],
+    q: ArrayLike,
+    use_xray: bool = False,
+    dtype: DTypeLike = DTYPE,
+) -> ArrayLike:
     """
     Calculate the atomic scattering factor for atom with scattering
     vector q.
@@ -194,10 +218,9 @@ def calculate_scattering_factor(element, q, use_xray=False, dtype=DTYPE):
     -------
     fe(s): float
         The electron atomic scattering factor.
-
     """
 
-    # s = (k' - k) / (4 * pi) = q / (4 * np.pi)
+    # s = (k' - k) / (4 * pi) = q / (4 * pi)
     s = np.asarray(q, dtype=dtype) / (4.0 * np.pi)
 
     # get element name as str
@@ -205,9 +228,8 @@ def calculate_scattering_factor(element, q, use_xray=False, dtype=DTYPE):
 
     if use_xray:
         # get correct row
-        row = ATOMIC_SCATTERING_FACTORS_XRAY.loc[
-            ATOMIC_SCATTERING_FACTORS_XRAY["Element"] == element
-        ]
+        asf = get_atomic_scattering_factors_xray()
+        row = asf.loc[asf["Element"] == element]
 
         out = (
             np.stack(
@@ -223,9 +245,8 @@ def calculate_scattering_factor(element, q, use_xray=False, dtype=DTYPE):
         out = mott_bethe_approximation(out, atomic_numbers[element], s)
     else:
         # get correct row
-        row = ATOMIC_SCATTERING_FACTORS.loc[
-            ATOMIC_SCATTERING_FACTORS["Element"] == element
-        ]
+        asf = get_atomic_scattering_factors()
+        row = asf.loc[asf["Element"] == element]
 
         out = np.stack(
             tuple(
@@ -238,7 +259,7 @@ def calculate_scattering_factor(element, q, use_xray=False, dtype=DTYPE):
     return np.squeeze(out)
 
 
-def reciprocal_vectors(a, b, *vectors):
+def reciprocal_vectors(a: ArrayLike, b: ArrayLike, *vectors: ArrayLike) -> NDArray:
     """
     Produce a* and b*, the reciprocal vectors of a and b.
 
@@ -262,7 +283,12 @@ def reciprocal_vectors(a, b, *vectors):
     ).T
 
 
-def generate_hkl_points(h=None, k=None, l=None, n=5):
+def generate_hkl_points(
+    h: Optional[ArrayLike] = None,
+    k: Optional[ArrayLike] = None,
+    l: Optional[ArrayLike] = None,
+    n: int = 5,
+) -> NDArray:
     """
     Generate a set of hkl points for a reciprocal lattice.
 
@@ -293,12 +319,12 @@ def generate_hkl_points(h=None, k=None, l=None, n=5):
 
 
 def calculate_structure_factor(
-    structure,
-    g,
-    scale_by_scattering_angle=True,
-    debye_waller=True,
-    T=293.0,
-):
+    structure: Structure,
+    g: NDArray,
+    scale_by_scattering_angle: bool = True,
+    debye_waller: bool = True,
+    T: float = 293.0,
+) -> NDArray:
     """
 
     Calculates the structure factor for a set of hkl points.
@@ -369,7 +395,7 @@ def calculate_structure_factor(
     return F
 
 
-def calculate_reflection_intensity(F):
+def calculate_reflection_intensity(F: NDArray[np.complexfloating]):
     """
     Return the intensity of the reflection which is calculated as:
     I = F * F*
@@ -385,11 +411,10 @@ def calculate_reflection_intensity(F):
         Intensity.
 
     """
-
     return np.real(F * np.conjugate(F))
 
 
-def calculate_ewald_sphere_radius(wavelength, dtype=DTYPE):
+def calculate_ewald_sphere_radius(wavelength: float, dtype: DTypeLike = DTYPE) -> float:
     """
     Convenience function to return radius of Ewald sphere.
 
@@ -408,7 +433,9 @@ def calculate_ewald_sphere_radius(wavelength, dtype=DTYPE):
     return dtype(1.0 / wavelength)
 
 
-def calculate_ewald_sphere_center(wavelength, psi=0.0, omega=0.0, dtype=DTYPE):
+def calculate_ewald_sphere_center(
+    wavelength: float, psi: float = 0.0, omega: float = 0.0, dtype: DTypeLike = DTYPE
+) -> NDArray:
     """
     Calculate the center location of the Ewald sphere given a tilt and
     azimuthal angle.
@@ -446,7 +473,7 @@ def calculate_ewald_sphere_center(wavelength, psi=0.0, omega=0.0, dtype=DTYPE):
     return np.array((Kx, Ky, Kz))
 
 
-def calculate_g_vectors(hkl, reciprocal_vectors):
+def calculate_g_vectors(hkl: NDArray, reciprocal_vectors: NDArray) -> NDArray:
     """
     Calculate g vectors from hkl Miller indices and the reciprocal
     lattice vectors.
@@ -468,7 +495,9 @@ def calculate_g_vectors(hkl, reciprocal_vectors):
     return np.dot(hkl, reciprocal_vectors)
 
 
-def calculate_g_vector_scattering_angle(g, wavelength, degrees=True):
+def calculate_g_vector_scattering_angle(
+    g: NDArray, wavelength: float, degrees: bool = True
+) -> NDArray:
     """
     Return the angle between the projected in plane g(x, y) vector and
     the electron beam (z).
@@ -498,7 +527,9 @@ def calculate_g_vector_scattering_angle(g, wavelength, degrees=True):
     return np.rad2deg(angles) if degrees else angles
 
 
-def calculate_mosaicity_profile(g, s, mu, s0=0.0):
+def calculate_mosaicity_profile(
+    g: NDArray, s: NDArray, mu: float, s0: float = 0.0
+) -> NDArray:
     """
     Calculate the effect of beam convergence and grain misorientation on
     diffraction intensities. The effect of these behaviours is modelled
@@ -535,7 +566,7 @@ def calculate_mosaicity_profile(g, s, mu, s0=0.0):
     return M
 
 
-def theta_to_k(theta, wavelength):
+def theta_to_k(theta: ArrayLike, wavelength: float) -> ArrayLike:
     """Convert scattering angle in radians to inverse units.
 
     Parameters
@@ -559,7 +590,7 @@ def theta_to_k(theta, wavelength):
     return theta / wavelength
 
 
-def k_to_theta(k, wavelength):
+def k_to_theta(k: ArrayLike, wavelength: float) -> ArrayLike:
     """Convert scattering angle in inverse units to radians.
 
     Parameters

@@ -1,13 +1,16 @@
+from __future__ import annotations
+
+import itertools
 from dataclasses import dataclass
 from enum import Enum
-import itertools
-from typing import Tuple, Union
+from typing import Callable, Generator, Optional, Tuple, Union
 
+import numpy as np
 from diffpy.structure import Structure
 from ipywidgets import IntSlider, interactive
 from matplotlib import pyplot as plt
-import numpy as np
-from numpy.typing import ArrayLike, DTypeLike
+from matplotlib.axes import Axes
+from numpy.typing import ArrayLike, DTypeLike, NDArray
 from orix.quaternion import Orientation, Quaternion
 from orix.vector import Vector3d
 from skimage import transform
@@ -32,22 +35,6 @@ from .structure import get_unit_cell_volume
 from .utils import DTYPE, calculate_zone_axis, generate_thetas, get_image_center
 
 
-def _sort_template_ax(ax, template):
-    """Sort out axes for template plotting."""
-    max_radius = (
-        1.1  # padding factor for axes
-        * np.tan(np.deg2rad(template.max_angle))
-        * calculate_ewald_sphere_radius(template.wavelength)
-    )
-    ax.set_xlim(-max_radius, max_radius)
-    ax.set_ylim(-max_radius, max_radius)
-    # Angstrom units
-    ax.set_xlabel("$\AA$")
-    ax.set_ylabel("$\AA$")
-
-    ax.set_aspect("equal")
-
-
 class DiffractionTemplateExcitationErrorModel(Enum):
     LINEAR = 1
     LORENTZIAN = 2
@@ -60,8 +47,11 @@ class DiffractionTemplateExcitationErrorNorm(Enum):
 
 
 def _calculate_excitation_error_z_lattice(
-    g, ewald_sphere_center, ewald_sphere_radius, z_lattice
-):
+    g: NDArray,
+    ewald_sphere_center: ArrayLike,
+    ewald_sphere_radius: float,
+    z_lattice: ArrayLike,
+) -> NDArray:
     """
     Calculate excitation error where relrods are extended along a certain direction.
 
@@ -98,9 +88,7 @@ def _calculate_excitation_error_z_lattice(
 
     # solve the quadratic
     pm = -1  # only want the lower solution, ie. around 000
-    soln = (-b + pm * np.sqrt(b**2 - 4 * a * c)) / (
-        2 * a
-    )  # general quadratic solution
+    soln = (-b + pm * np.sqrt(b**2 - 4 * a * c)) / (2 * a)  # general quadratic solution
 
     # two root quadratic solution
     # soln = np.stack(tuple((- b + pm * np.sqrt(b ** 2 - 4*a*c)) / (2 * a) for pm in (-1, 1)))
@@ -117,14 +105,14 @@ def _calculate_excitation_error_z_lattice(
 
 
 def calculate_excitation_error(
-    g,
-    wavelength,
-    psi=0.0,
-    omega=0.0,
-    norm=DiffractionTemplateExcitationErrorNorm.NORM,
-    z_lattice=None,
-    dtype=DTYPE,
-):
+    g: NDArray,
+    wavelength: float,
+    psi: float = 0.0,
+    omega: float = 0.0,
+    norm: DiffractionTemplateExcitationErrorNorm = DiffractionTemplateExcitationErrorNorm.NORM,
+    z_lattice: Optional[ArrayLike] = None,
+    dtype: DTypeLike = DTYPE,
+) -> NDArray:
     """
     Calculate the excitation errors between the Ewald sphere and a set
     of hkl points.
@@ -241,14 +229,14 @@ def calculate_excitation_error(
 
 
 def integrate_reflection_intensity(
-    I,
-    s,
-    s_max=S_MAX,
-    model=DiffractionTemplateExcitationErrorModel.LINEAR,
-    gamma=None,
-    volume=None,
-    wavelength=None,
-    dtype=DTYPE,
+    I: NDArray,
+    s: NDArray,
+    s_max: float = S_MAX,
+    model: DiffractionTemplateExcitationErrorModel = DiffractionTemplateExcitationErrorModel.LINEAR,
+    gamma: Optional[NDArray] = None,
+    volume: Optional[float] = None,
+    wavelength: Optional[float] = None,
+    dtype: DTypeLike = DTYPE,
 ):
     """
     Calculate the expected reflection intensities.
@@ -343,34 +331,32 @@ class DiffractionTemplate:
     dtype: DTypeLike = DTYPE
 
     @property
-    def x_star(self):
+    def x_star(self) -> NDArray:
         return self.g[..., 0]
 
     @property
-    def y_star(self):
+    def y_star(self) -> NDArray:
         return self.g[..., 1]
 
     @property
-    def z_star(self):
+    def z_star(self) -> NDArray:
         return self.g[..., 2]
 
     @property
-    def projected_vectors(self):
-        """
-        Return the diffraction vectors projected onto the xy plane.
-        """
+    def projected_vectors(self) -> NDArray:
+        """Return the diffraction vectors projected onto the xy plane."""
         return self.g[..., :-1]
 
     @property
-    def h(self):
+    def h(self) -> NDArray:
         return self.hkl[..., 0]
 
     @property
-    def k(self):
+    def k(self) -> NDArray:
         return self.hkl[..., 1]
 
     @property
-    def l(self):
+    def l(self) -> NDArray:
         return self.hkl[..., 2]
 
     @property
@@ -382,13 +368,18 @@ class DiffractionTemplate:
         )
 
     @property
-    def direct_beam_mask(self):
+    def direct_beam_mask(self) -> NDArray[np.bool_]:
         """Returns mask where every g vector except direct beam is True."""
         return np.logical_not(np.isclose(self.g, 0).all(axis=-1))
 
+    @property
+    def g_radius(self) -> NDArray:
+        """The radial distance of the g vectors."""
+        return np.linalg.norm(self.g[..., :-1], axis=-1)
+
     def plot(
         self,
-        ax: Union[plt.Axes, None] = None,
+        ax: Optional[plt.Axes] = None,
         pixel_size: float = 1.0,
         center: Tuple = (0, 0),
         labels: bool = False,
@@ -402,7 +393,6 @@ class DiffractionTemplate:
         **kwargs,
     ):
         """
-
         Plot excited reflection locations on an axes.
 
         Parameters
@@ -513,13 +503,13 @@ class DiffractionTemplate:
         self,
         shape: Tuple,
         pixel_size: float,
-        center: Union[ArrayLike, None] = None,
+        center: Optional[ArrayLike] = None,
         psf: Union[float, ArrayLike] = 0.0,
         direct_beam: bool = False,
         center_of_mass_coordinates: bool = False,
         scale_disks: bool = False,
         dtype: DTypeLike = DTYPE,
-    ):
+    ) -> DiffractionPattern:
         """
         Generate diffraction pattern image from this template.
         See staticmethod of the same name for more information.
@@ -575,15 +565,15 @@ class DiffractionTemplate:
 
     def calculate_optimum_rotation(
         self,
-        image: np.ndarray,
+        image: NDArray,
         pixel_size: float,
-        center: Union[None, ArrayLike] = None,
+        center: Optional[ArrayLike] = None,
         num: int = 360,
         float_coords: bool = False,
         norm_P: bool = False,
         norm_T: bool = False,
         return_correlation_indices: bool = False,
-    ):
+    ) -> Union[float, Tuple[float, NDArray]]:
         """
         Calculate the optimum rotation of this template for a given
         pattern.
@@ -644,15 +634,15 @@ class DiffractionTemplate:
 
     def virtual_reconstruction(
         self,
-        data,
-        pixel_size,
-        center=None,
-        scale_intensity=True,
-        normP=False,
-        normT=False,
-        sum=True,
-        fn=None,
-    ):
+        data: Union[NDArray, Generator[NDArray, None, None]],
+        pixel_size: float,
+        center: Optional[ArrayLike] = None,
+        scale_intensity: bool = True,
+        normP: bool = False,
+        normT: bool = False,
+        sum: bool = True,
+        fn: Optional[Callable] = None,
+    ) -> NDArray:
         """
         Compute a Frozen Template Virtual Reconstruction.
 
@@ -721,7 +711,9 @@ class DiffractionTemplate:
             dtype=self.dtype,
         )
 
-    def projected_vectors_to_pixels(self, pixel_size, center):
+    def projected_vectors_to_pixels(
+        self, pixel_size: float, center: ArrayLike
+    ) -> NDArray:
         """
         Convert projected vectors in inverse units to pixel coordinates.
         The (x*, y*) template coordinates are converted to detector
@@ -743,20 +735,15 @@ class DiffractionTemplate:
 
         return self.projected_vectors[..., ::-1] / pixel_size + center
 
-    @property
-    def g_radius(self):
-        """The radial distance of the g vectors."""
-        return np.linalg.norm(self.g[..., :-1], axis=-1)
-
     def calculate_correlation_index_1d(
         self,
-        radial_profile,
-        bins=None,
-        pixel_size=None,
-        norm_P=False,
-        norm_T=True,
-        bin_centers=None,
-    ):
+        radial_profile: NDArray,
+        bins: Optional[NDArray] = None,
+        pixel_size: Optional[float] = None,
+        norm_P: bool = False,
+        norm_T: bool = True,
+        bin_centers: Optional[NDArray] = None,
+    ) -> float:
         """Calculate correlation index from 1d radial profile.
 
         Parameters
@@ -800,22 +787,21 @@ class DiffractionTemplate:
         if bin_centers is None:
             bin_centers = (bins[:-1] / pixel_size).astype(int)
 
-        CI = _calculate_correlation_index(
+        return _calculate_correlation_index(
             radial_profile[bin_centers], vals, norm_P=norm_P, norm_T=norm_T
         )
-        return CI
 
     def scan_pixel_sizes(
         self,
-        image: ArrayLike,
+        image: NDArray,
         pixel_sizes: ArrayLike,
-        center: Union[None, ArrayLike] = None,
-        ax: plt.Axes = None,
+        center: Optional[ArrayLike] = None,
+        ax: Optional[plt.Axes] = None,
         num: int = 360,
         return_all: bool = False,
         float_coords: bool = False,
         dtype: DTypeLike = DTYPE,
-    ):
+    ) -> Union[Tuple[float, float], NDArray]:
         """
         Compute the best correlation index from a range of pixel sizes.
         The template correlation index is computed for each pixel sizes
@@ -866,19 +852,19 @@ class DiffractionTemplate:
             image,
             center,
             pixel_sizes,
-            self.generate_thetas(num),
+            generate_thetas(num),
             self.intensity,
             out,
             float_coords=float_coords,
         )
 
-        if ax is not None:
+        if ax:
             # plotCI result
             ax.plot(pixel_sizes, out[:, 0])
 
             # plot theta value
             color_theta = "tab:red"
-            axtheta = ax.twinx()
+            axtheta: Axes = ax.twinx()
             axtheta.plot(pixel_sizes, out[:, 1], color=color_theta, ls="dotted")
 
             # label axes
@@ -917,7 +903,7 @@ class DiffractionTemplate:
         norm: str,
         flip: bool,
         dtype: DTypeLike = DTYPE,
-    ):
+    ) -> DiffractionTemplate:
         """
         Simulate kinematic diffraction and generate resulting template.
 
@@ -1031,7 +1017,7 @@ class DiffractionTemplate:
 
 @dataclass
 class DiffractionTemplateBlock:
-    templates: ArrayLike
+    templates: NDArray[np.object_]
     wavelength: float
     s_max: float
     norm: DiffractionTemplateExcitationErrorNorm
@@ -1050,8 +1036,14 @@ class DiffractionTemplateBlock:
     def __len__(self):
         return len(self.templates)
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}: {self.shape}"
+
     def ravel(self):
         return self.templates.ravel()
+
+    def flatten(self):
+        return self.ravel()
 
     @property
     def shape(self):
@@ -1069,18 +1061,15 @@ class DiffractionTemplateBlock:
     def ndim(self):
         return self.templates.ndim
 
-    def flatten(self):
-        return self.ravel()
-
     def calculate_optimum_template(
         self,
-        image: ArrayLike,
+        image: NDArray,
         pixel_size: float,
         center: Union[None, ArrayLike] = None,
         num: int = 360,
         float_coords: bool = False,
         return_correlation_indices: bool = False,
-    ):
+    ) -> Tuple[DiffractionTemplate, NDArray]:
         """Calculate the best template for a given pattern from within
         this DiffractionTemplateBlock.
 
@@ -1116,6 +1105,7 @@ class DiffractionTemplateBlock:
         result = np.empty(len(temp), dtype=self.dtype)
         # calculate correlation index for every template
         for i, template in enumerate(tqdm(temp)):
+            template: DiffractionTemplate = template
             _, CI = template.calculate_optimum_rotation(
                 image,
                 pixel_size,
@@ -1134,21 +1124,18 @@ class DiffractionTemplateBlock:
             else optimum_template
         )
 
-    def __repr__(self):
-        return f"{self.__class__.__name__}: {self.shape}"
-
     def calculate_optimum_template_1d(
         self,
-        image,
-        pixel_size,
-        full_match_n=0,
-        center=None,
-        num=360,
-        norm_P=False,
-        norm_T=True,
-        float_coords=False,
-        progressbar=False,
-    ):
+        image: NDArray,
+        pixel_size: float,
+        full_match_n: int = 0,
+        center: Optional[ArrayLike] = None,
+        num: int = 360,
+        norm_P: bool = False,
+        norm_T: bool = True,
+        float_coords: bool = False,
+        progressbar: bool = False,
+    ) -> float:
         """Calculate 1d correlation index on this template on a polar
         transformed diffraction pattern.
 
@@ -1234,7 +1221,13 @@ class DiffractionTemplateBlock:
                 CI[i] = CI_full.max()
         return CI
 
-    def plot(self, ax=None, labels=True, size=10, facecolor=None):
+    def plot(
+        self,
+        ax: Optional[Axes] = None,
+        labels: bool = True,
+        size: int = 10,
+        facecolor: Optional[Union[Tuple[int, int, int, int], str]] = None,
+    ):
         """Interactive plot."""
         if facecolor is None:
             facecolor = (0, 0, 0, 0)
@@ -1297,17 +1290,17 @@ class DiffractionTemplateBlock:
 
     def generate_diffraction_patterns(
         self,
-        shape,
-        pixel_size,
-        center=None,
-        psf=0,
-        direct_beam=False,
-        center_of_mass_coordinates=True,
-        scale_disks=False,
-        dtype=DTYPE,
-        progressbar=True,
-        keep_references=True,
-    ):
+        shape: ArrayLike,
+        pixel_size: float,
+        center: Optional[ArrayLike] = None,
+        psf: Union[NDArray, float] = 0.0,
+        direct_beam: bool = False,
+        center_of_mass_coordinates: bool = True,
+        scale_disks: bool = False,
+        dtype: DTypeLike = DTYPE,
+        progressbar: bool = True,
+        keep_references: bool = True,
+    ) -> DiffractionPatternBlock:
         """
         Generate a diffraction pattern image for every template in the
         block. See staticmethod of the same name for more information.
@@ -1362,7 +1355,7 @@ class DiffractionTemplateBlock:
             total=np.prod(self.shape),
             disable=not progressbar,
         ):
-            template = self.templates[ijk]
+            template: DiffractionTemplate = self.templates[ijk]
             pattern = DiffractionPattern.generate_diffraction_pattern(
                 g=template.projected_vectors,
                 intensity=template.intensity,
@@ -1406,7 +1399,7 @@ class DiffractionTemplateBlockSuperSampled:
     grid. Each grid point contains a DiffractionTemplateBlock.
     """
 
-    templates: ArrayLike
+    templates: NDArray[np.object_]
     xrange: ArrayLike
     yrange: ArrayLike
     zrange: ArrayLike
@@ -1424,7 +1417,7 @@ class DiffractionTemplateBlockSuperSampled:
     flipped: bool
     dtype: DTypeLike = DTYPE
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.__class__.__name__} {self.xrange}, {self.yrange}, {self.zrange}"
 
     @property
@@ -1439,21 +1432,21 @@ class DiffractionTemplateBlockSuperSampled:
     def ndim(self):
         return self.templates.ndim
 
-    def __getitem__(self, indices):
+    def __getitem__(self, indices) -> DiffractionTemplateBlock:
         return self.templates[indices]
 
     def generate_diffraction_patterns(
         self,
-        shape,
-        pixel_size,
-        center=None,
-        psf=0.0,
-        direct_beam=False,
-        center_of_mass_coordinates=False,
-        scale_disks=False,
-        dtype=DTYPE,
-        keep_references=False,
-    ):
+        shape: ArrayLike,
+        pixel_size: float,
+        center: Optional[ArrayLike] = None,
+        psf: Union[NDArray, float] = 0.0,
+        direct_beam: bool = False,
+        center_of_mass_coordinates: bool = False,
+        scale_disks: bool = False,
+        dtype: DTypeLike = DTYPE,
+        keep_references: bool = False,
+    ) -> DiffractionPatternBlock:
         """
         Generate average diffraction pattern image for every
         supersampled grid in the block. See staticmethod of the same
@@ -1507,7 +1500,8 @@ class DiffractionTemplateBlockSuperSampled:
         ):
             # each array element is a TemplateBlock
             # so generate the PatternBlock
-            patterns = self.templates[ijk].generate_diffraction_patterns(
+            template: DiffractionTemplateBlock = self.templates[ijk]
+            patterns: DiffractionPatternBlock = template.generate_diffraction_patterns(
                 shape,
                 pixel_size,
                 center=center,
@@ -1533,3 +1527,19 @@ class DiffractionTemplateBlockSuperSampled:
             center_of_mass_coordinates=center_of_mass_coordinates,
             scale_disks=scale_disks,
         )
+
+
+def _sort_template_ax(ax: Axes, template: DiffractionTemplate) -> None:
+    """Sort out axes for template plotting."""
+    max_radius = (
+        1.1  # padding factor for axes
+        * np.tan(np.deg2rad(template.max_angle))
+        * calculate_ewald_sphere_radius(template.wavelength)
+    )
+    ax.set_xlim(-max_radius, max_radius)
+    ax.set_ylim(-max_radius, max_radius)
+    # Angstrom units
+    ax.set_xlabel("$\AA$")
+    ax.set_ylabel("$\AA$")
+
+    ax.set_aspect("equal")

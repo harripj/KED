@@ -1,12 +1,23 @@
+from typing import List, Optional, Tuple
+
 from IPython.display import display
 from ipywidgets import IntSlider, interactive
 from matplotlib import pyplot as plt
 import numpy as np
+from numpy.typing import ArrayLike, NDArray
+import pandas as pd
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial.distance import cdist
 
 
-def filter_matches_xy(matches, xy1, xy2, dx=None, dy=50, abs=True):
+def filter_matches_xy(
+    matches: List[NDArray],
+    xy1: NDArray,
+    xy2: NDArray,
+    dx: Optional[float] = None,
+    dy: Optional[float] = 50,
+    abs: bool = True,
+) -> List[NDArray]:
     """
     Filter matches between datasets by spatial displacement.
 
@@ -40,18 +51,20 @@ def filter_matches_xy(matches, xy1, xy2, dx=None, dy=50, abs=True):
         if abs:
             val = np.abs(val)
         mask = val <= dx
-        matches = tuple(idx[mask] for idx in matches)
+        matches = [idx[mask] for idx in matches]
     if dy is not None:
         val = delta[:, 1]
         if abs:
             val = np.abs(val)
         mask = val <= dy
-        matches = tuple(idx[mask] for idx in matches)
+        matches = [idx[mask] for idx in matches]
 
     return matches
 
 
-def sort_matches_multiple_couples(matches, comp1, comp2):
+def sort_matches_multiple_couples(
+    matches: List[NDArray], comp1: pd.DataFrame, comp2: pd.DataFrame
+) -> Tuple[NDArray]:
     """
     Sort coupling between component sets by minimum distance.
     In some cases many components are found on one component image.
@@ -109,7 +122,14 @@ def sort_matches_multiple_couples(matches, comp1, comp2):
     )  # keep same format as from linear_sum_assignment (tuple)
 
 
-def plot_matches(xy1, xy2, image1, image2, cmap="gray", color="k"):
+def plot_matches(
+    xy1: NDArray,
+    xy2: NDArray,
+    image1: NDArray,
+    image2: NDArray,
+    cmap: str = "gray",
+    color: str = "k",
+) -> plt.Figure:
     """
     Plot matches between datasets.
 
@@ -124,6 +144,9 @@ def plot_matches(xy1, xy2, image1, image2, cmap="gray", color="k"):
     color: str
         Colour for coupling lines.
 
+    Returns
+    -------
+    fig: plt.Figure
     """
     fig, ax = plt.subplots()
 
@@ -138,8 +161,17 @@ def plot_matches(xy1, xy2, image1, image2, cmap="gray", color="k"):
     for _xy1, _xy2 in zip(xy1, xy2):
         ax.plot([_xy1[0], _xy2[0] + x_offset], [_xy1[1], _xy2[1]], color=color)
 
+    return fig
 
-def plot_matches(coords1, coords2, im1, im2, matches, _interactive=False):
+
+def plot_matches(
+    coords1: NDArray,
+    coords2: NDArray,
+    im1: NDArray,
+    im2: NDArray,
+    matches: Tuple[ArrayLike],
+    _interactive: bool = False,
+) -> plt.Figure:
     """
     Plot coupled points and links (edges) on the same axes.
 
@@ -155,6 +187,9 @@ def plot_matches(coords1, coords2, im1, im2, matches, _interactive=False):
         If True then only one edge is shown at a time.
         A slider is presented to select the edge.
 
+    Returns
+    -------
+    fig: plt.Figure
     """
     fig, ax = plt.subplots()
     ax.matshow(im1, extent=[0, im1.shape[1], im1.shape[0], 0])
@@ -186,3 +221,5 @@ def plot_matches(coords1, coords2, im1, im2, matches, _interactive=False):
                 "k",
                 alpha=0.5,
             )
+
+    return fig
