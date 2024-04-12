@@ -1,7 +1,8 @@
 from diffpy.structure import Structure
-from ked123.generator import CrystalDiffractionGenerator, DiffractionGeneratorType
-from ked123.template import DiffractionTemplate, DiffractionTemplateBlock
 from orix.quaternion import Orientation
+
+from ked.generator import CrystalDiffractionGenerator, DiffractionGeneratorType
+from ked.template import DiffractionTemplate, DiffractionTemplateBlock
 
 
 def test_generator_init(cif_Fe_BCC):

@@ -3,16 +3,17 @@ from typing import Callable, Tuple
 
 from ase import io as aseio
 from diffpy.structure import Structure, loadStructure
-from ked123.structure import (
+import numpy as np
+from orix.crystal_map import Phase
+import pytest
+
+from ked.structure import (
     get_positions,
     get_scaled_positions,
     get_unit_cell_volume,
     get_unit_vectors,
     parse_structure,
 )
-import numpy as np
-from orix.crystal_map import Phase
-import pytest
 
 
 def get_parsed_structures(

@@ -1,8 +1,9 @@
-from ked123.reciprocal_lattice import reciprocal_vectors
 import numpy as np
 from numpy.typing import NDArray
 from orix.quaternion import Orientation
 from orix.vector import Vector3d
+
+from ked.reciprocal_lattice import reciprocal_vectors
 
 
 def explicit_reciprocal_vectors(vectors: NDArray):

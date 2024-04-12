@@ -1,7 +1,8 @@
-from ked123.utils import add_floats_to_array, index_array_with_floats
 import numpy as np
 from scipy import ndimage
 from skimage import measure
+
+from ked.utils import add_floats_to_array, index_array_with_floats
 
 
 def test_add_floats_to_array2d(non_overlapping_array, coords, vals):
