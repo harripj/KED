@@ -8,21 +8,21 @@ from ncempy.io import mrc
 import numba
 import numpy as np
 from numpy.typing import ArrayLike, DTypeLike, NDArray
+from orix.quaternion import Orientation
 from orix.quaternion import symmetry as osymmetry
 from orix.vector import AxAngle, Vector3d
 import pandas as pd
 from scipy import constants, ndimage
 from scipy.interpolate import interp1d
-from scipy.spatial.transform import Rotation
 
 # define dtype for whole module regarding simulations etc.
 DTYPE = np.float32
 
 
-def calculate_zone_axis(rot: Rotation, n: int = 15) -> Tuple[Vector3d, float]:
+def calculate_zone_axis(ori: Orientation, n: int = 15) -> Tuple[Vector3d, float]:
     """Return approximate Z zone axis and misorientation (in radians)."""
     # find the vector which maps to z after rotation
-    z = (~rot * Vector3d.zvector()).data
+    z = (~ori * Vector3d.zvector()).data
     # the smallest factor should be a multiple of the smallest component
     z_min = np.abs(z).min()
     z_arr = z / z_min
@@ -36,7 +36,7 @@ def calculate_zone_axis(rot: Rotation, n: int = 15) -> Tuple[Vector3d, float]:
     # find best rounded axis
     axis = Vector3d(mult_rounded[err.argmin()])
     # get the misorientation between rounded axis and z
-    dp = np.dot((rot * axis).unit.data.ravel(), Vector3d.zvector().unit.data.ravel())
+    dp = np.dot((ori * axis).unit.data.ravel(), Vector3d.zvector().unit.data.ravel())
     misori = np.arccos(dp)
 
     return axis, misori
@@ -151,7 +151,7 @@ def get_orientations_standard_triangle(
     v1: ArrayLike = (0, 0, 1),
     v2: ArrayLike = (1, 0, 1),
     v3: ArrayLike = (1, 1, 1),
-) -> Rotation:
+) -> Orientation:
     """
     Return approximately evenly spaced orientations within the standard
     triangle.
@@ -169,12 +169,7 @@ def get_orientations_standard_triangle(
         Orientations within the standard triangle.
 
     """
-    if res == 1:
-        n = 40000
-    else:
-        raise ValueError("Currently only res=1 is implemented.")
-
-    pts = np.column_stack(fibonacci_sphere(n))
+    pts = fibonacci_sphere(res=res)
 
     # vertices defining the standard triangle
     verts = np.array((v1, v2, v3))
@@ -184,13 +179,13 @@ def get_orientations_standard_triangle(
     center = center / np.linalg.norm(center)
 
     for i, v in enumerate(verts):
-        _cross = np.cross(verts[(i + 1) % len(verts)], v)
-        temp = np.dot(pts, _cross)
+        cross = np.cross(verts[(i + 1) % len(verts)], v)
+        temp = np.dot(pts, cross)
 
-        _cross_val = np.dot(center, _cross)
-        if _cross_val > 0:
+        cross_val = np.dot(center, cross)
+        if cross_val > 0:
             pm = 1
-        elif _cross_val < 0:
+        elif cross_val < 0:
             pm = -1
         else:
             raise ValueError(f"Cannot work out direction.")
@@ -204,7 +199,7 @@ def get_orientations_standard_triangle(
 
     # normalise rot product vector and multiply by angle in rad. -> rotvec
     rot = (rot.T / np.linalg.norm(rot, axis=-1)).T
-    return Rotation.from_rotvec((rot.T * angle).T)
+    return Orientation.from_neo_euler(AxAngle((rot.T * angle).T))
 
 
 def plot_solution_grid(
