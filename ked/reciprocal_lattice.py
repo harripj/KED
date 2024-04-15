@@ -6,6 +6,7 @@ from ase import Atom as aseAtom
 from ase.data import atomic_numbers
 from diffpy.structure import Atom as diffpyAtom
 from diffpy.structure import Structure
+from diffpy.structure.spacegroupmod import SpaceGroup
 import numpy as np
 from numpy.typing import ArrayLike, DTypeLike, NDArray
 import pandas as pd
@@ -103,7 +104,7 @@ def get_debye_waller_factors_greater_than_80K() -> pd.DataFrame:
 def calculate_debye_waller_factor(
     element: Union[aseAtom, diffpyAtom, str, int],
     T: float = 293.0,
-    structure: Optional[str] = None,
+    structure_name: Optional[str] = None,
 ) -> float:
     """
     Calculate the Debye-Waller factor B for an element at temperature T.
@@ -138,13 +139,14 @@ def calculate_debye_waller_factor(
     row = factors[factors["Element"] == element]
 
     # apply structure filtering
-    if structure is not None:
-        row = row[row["Structure"].str.lower() == structure.lower()]
+    if structure_name is not None:
+        row = row[row["Structure"].str.lower() == structure_name.lower()]
 
     n = len(row)
     if not n:
-        temp = {structure if structure is not None else "Any"}
-        raise ValueError(f"{element} with structure {temp} not found in database.")
+        raise ValueError(
+            f"{element} with structure {structure_name or 'Any'} not found in database."
+        )
     elif n > 1:
         logging.error(
             f"Multiple element with name {element} found in database: "
@@ -324,6 +326,7 @@ def calculate_structure_factor(
     scale_by_scattering_angle: bool = True,
     debye_waller: bool = True,
     T: float = 293.0,
+    space_group: Optional[SpaceGroup] = None,
 ) -> NDArray:
     """
 
@@ -361,29 +364,28 @@ def calculate_structure_factor(
 
     # atomic scattering factors
     if scale_by_scattering_angle:
-        f = np.transpose(
-            [calculate_scattering_factor(atom, g_abs) for atom in structure]
-        )
+        f = [calculate_scattering_factor(atom, g_abs) for atom in structure]
     else:
         # evaluate every atoms for 0 scattering vector
-        f = np.transpose([calculate_scattering_factor(atom, 0.0) for atom in structure])
+        f = [calculate_scattering_factor(atom, 0.0) for atom in structure]
+    f = np.transpose(f)
 
     if debye_waller:
-        if False:  # isinstance(atoms, aseAtoms):
+        if space_group:
             # automatic filtering of BCC and FCC lattices with spacegroup
             # numbers 229 and 225
-            if atoms.info["spacegroup"].no == 225:
-                structure = "f.c.c."  # as written in table
-            elif atoms.info["spacegroup"].no == 229:
-                structure = "b.c.c."
+            if space_group.number == 225:
+                structure_name = "f.c.c."  # as written in table
+            elif space_group.number == 229:
+                structure_name = "b.c.c."
             else:
-                structure = None
+                structure_name = None
         # TODO: spacegroup information for diffpy.structure
         else:
-            structure = None
+            structure_name = None
         B = np.array(
             [
-                calculate_debye_waller_factor(atom, T, structure=structure)
+                calculate_debye_waller_factor(atom, T, structure_name=structure_name)
                 for atom in structure
             ]
         )
