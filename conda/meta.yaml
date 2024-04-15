@@ -27,11 +27,7 @@ test:
     - tests
   requires:
     - pytest
-  # imports:
-  #   {% for dep in data['install_requires'] %}
-  #   - {{ dep.lower() }}
-  #   {% endfor %}
-
+    
 about:
   home: https://github.com/harripj/KED
   license_file: LICENSE
