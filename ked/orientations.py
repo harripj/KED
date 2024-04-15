@@ -1,8 +1,8 @@
 import math
 from typing import List, Literal, Optional, Tuple, Union
 
-import numpy as np
 from matplotlib.pyplot import Axes
+import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from orix.quaternion import Orientation, Quaternion, Rotation
 from orix.quaternion.symmetry import C1, Symmetry
@@ -973,7 +973,7 @@ def rotvec_to_rotation(rv: Union[ArrayLike, AxAngle, Rotation]) -> Rotation:
         rv = AxAngle(rv)
 
     if isinstance(rv, AxAngle):
-        ori = Rotation.from_neo_euler(AxAngle(rv))
+        ori = Rotation.from_axes_angles(rv, rv.angle)
     else:
         ori = convert_to_orix(rv)
     return ori

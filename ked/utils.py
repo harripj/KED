@@ -199,7 +199,7 @@ def get_orientations_standard_triangle(
 
     # normalise rot product vector and multiply by angle in rad. -> rotvec
     rot = (rot.T / np.linalg.norm(rot, axis=-1)).T
-    return Orientation.from_neo_euler(AxAngle((rot.T * angle).T))
+    return Orientation.from_axes_angles(rot, angle)
 
 
 def plot_solution_grid(
@@ -225,7 +225,6 @@ def plot_solution_grid(
     n: int
         The grid shape.
     cmap: plt.ColorMap.
-
     """
     assert soln.ndim == 3 and soln.shape == (n, n, n)
     ax.voxels(soln, facecolors=cmap(soln / soln.sum()))

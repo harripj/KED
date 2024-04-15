@@ -6,8 +6,8 @@ from enum import Enum
 from pathlib import Path
 from typing import ClassVar, Optional, Tuple, Union
 
-import numpy as np
 from diffpy.structure import Structure
+import numpy as np
 from numpy.typing import ArrayLike, DTypeLike, NDArray
 from orix.crystal_map import Phase
 from orix.quaternion import Orientation, Rotation
@@ -461,7 +461,7 @@ class DiffractionGenerator(abc.ABC):
             num: int,
         ):
             temp = self.generate_templates(
-                Orientation.from_neo_euler(AxAngle(x)),
+                Orientation.from_axes_angles(x, np.linalg.norm(x, axis=-1)),
                 template.s_max,
                 template.psi,
                 template.omega,
@@ -487,8 +487,8 @@ class DiffractionGenerator(abc.ABC):
             kwargs.setdefault("method", "COBYLA")
 
             def limit_misorientation(x: NDArray, init: NDArray, limit: float):
-                o1 = Orientation.from_neo_euler(AxAngle(x))
-                o2 = Orientation.from_neo_euler(AxAngle(init))
+                o1 = Orientation.from_axes_angles(x, np.linalg.norm(x, axis=-1))
+                o2 = Orientation.from_axes_angles(init, np.linalg.norm(init, axis=-1))
                 misori = o2 * ~o1
                 return limit - misori.angle.data
 
@@ -516,7 +516,7 @@ class DiffractionGenerator(abc.ABC):
             **kwargs,
         )
         # best orientation
-        ori = Orientation.from_neo_euler(AxAngle(res.x))
+        ori = Orientation.from_axes_angles(res.x, np.linalg.norm(res.x, axis=-1))
 
         # generate refined template, scan azimuthal rotation and then combine the two
         temp = self.generate_templates(
@@ -539,7 +539,10 @@ class DiffractionGenerator(abc.ABC):
             float_coords=True,
         )
 
-        rotation_azimuthal = Orientation.from_neo_euler(AxAngle((0, 0, -1.0 * r1)))
+        axis = np.array([0, 0, -1.0 * r1])
+        rotation_azimuthal = Orientation.from_axes_angles(
+            axis, np.linalg.norm(axis, axis=-1)
+        )
 
         # generate a new template including azimuthal rotation
         out = self.generate_templates(
@@ -676,7 +679,7 @@ class DiffractionGenerator(abc.ABC):
             sub_grid = np.stack(tuple(g.ravel() for g in grid[ijk]), axis=1)
             # produce templateblock
             out[ijk] = self.generate_templates(
-                Rotation.from_neo_euler(AxAngle(sub_grid)),
+                Rotation.from_axes_angles(sub_grid, np.linalg.norm(sub_grid, axis=-1)),
                 shape=grid.shape[-ndim:],
                 s_max=s_max,
                 psi=psi,
@@ -816,8 +819,10 @@ class DiffractionGenerator(abc.ABC):
         else:
             idx = np.ones_like(grid[0], dtype=bool)
 
-        rot1 = Rotation.from_neo_euler(AxAngle(grid[0][idx][..., np.newaxis] * r1))
-        rot2 = Rotation.from_neo_euler(AxAngle(grid[1][idx][..., np.newaxis] * r2))
+        rot1_axis = grid[0][idx][..., np.newaxis] * r1
+        rot2_axis = grid[1][idx][..., np.newaxis] * r2
+        rot1 = Rotation.from_axes_angles(rot1_axis, np.linalg.norm(rot1_axis, axis=-1))
+        rot2 = Rotation.from_axes_angles(rot2_axis, np.linalg.norm(rot2_axis, axis=-1))
 
         # combine the rotations, order matters
         rot = rot2 * rot1

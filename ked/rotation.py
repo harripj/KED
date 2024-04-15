@@ -26,8 +26,7 @@ def calculate_rotation_vector(v1: ArrayLike, v2: ArrayLike) -> Rotation:
     """
     norm = np.cross(v1, v2)
     angle = np.arccos(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)))
-
-    return Rotation.from_neo_euler(AxAngle(norm * angle / np.linalg.norm(norm)))
+    return Rotation.from_axes_angles(norm, angle / np.linalg.norm(norm, axis=-1))
 
 
 @numba.njit
