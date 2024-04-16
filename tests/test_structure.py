@@ -34,7 +34,7 @@ def get_parsed_structures(
 def test_parse_structure(cif_files):
     for file in cif_files:
         s, a, p, f = get_parsed_structures(file)
-        assert all(isinstance(i, Structure) for i in (s, a, p, f))
+        assert all([isinstance(i, Structure) for i in (s, a, p, f)])
 
 
 @pytest.mark.parametrize(
@@ -44,4 +44,4 @@ def test_get_functions(fn: Callable, cif_files):
     for file in cif_files:
         s, a, p, f = get_parsed_structures(file)
         ps = fn(s)
-        assert all(np.allclose(ps, fn(x)) for x in (a, p, f))
+        assert all([np.allclose(ps, fn(x)) for x in (a, p, f)])
