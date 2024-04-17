@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-import itertools
 from dataclasses import dataclass
 from enum import Enum
+import itertools
 from typing import Callable, Generator, Optional, Tuple, Union
 
-import numpy as np
 from diffpy.structure import Structure
 from ipywidgets import IntSlider, interactive
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
+import numpy as np
 from numpy.typing import ArrayLike, DTypeLike, NDArray
 from orix.quaternion import Orientation, Quaternion
 from orix.vector import Vector3d
@@ -1400,11 +1400,6 @@ class DiffractionTemplateBlockSuperSampled:
     """
 
     templates: NDArray[np.object_]
-    xrange: ArrayLike
-    yrange: ArrayLike
-    zrange: ArrayLike
-    num: int
-    supersampling: int
     wavelength: float
     s_max: float
     norm: DiffractionTemplateExcitationErrorNorm
@@ -1417,8 +1412,12 @@ class DiffractionTemplateBlockSuperSampled:
     flipped: bool
     dtype: DTypeLike = DTYPE
 
+    @property
+    def supersampling(self) -> Tuple[int, int, int]:
+        return self.templates.ravel()[0].shape
+
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__} {self.xrange}, {self.yrange}, {self.zrange}"
+        return f"{self.__class__.__name__} {self.shape}"
 
     @property
     def shape(self):
@@ -1431,6 +1430,12 @@ class DiffractionTemplateBlockSuperSampled:
     @property
     def ndim(self):
         return self.templates.ndim
+
+    def ravel(self):
+        return self.templates.ravel()
+
+    def flatten(self):
+        return self.ravel()
 
     def __getitem__(self, indices) -> DiffractionTemplateBlock:
         return self.templates[indices]

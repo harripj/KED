@@ -27,7 +27,7 @@ from .reciprocal_lattice import (
     generate_hkl_points,
     reciprocal_vectors,
 )
-from .sampling import generate_supersampled_grid
+from .sampling import SuperSampledOrientationGrid
 from .structure import get_unit_vectors, parse_structure
 from .template import (
     DiffractionTemplate,
@@ -330,6 +330,8 @@ class DiffractionGenerator(abc.ABC):
             Eg. NORM, REFERENCE.
         flip: bool
             If True then y coordinates are flipped to match ASTAR.
+        supersampling: int
+
         dtype: DTypeLike
             Template datattype.
 
@@ -339,19 +341,20 @@ class DiffractionGenerator(abc.ABC):
         template: DiffractionTemplate
             The simulated template if ony one template required.
         """
-        if not isinstance(orientations, Rotation):
-            raise ValueError("Orientations must be orix.quaternion.Rotation.")
-        if not orientations.size >= 1:
+        if not isinstance(orientations, (Rotation, SuperSampledOrientationGrid)):
+            raise ValueError(
+                "Orientations must be orix.quaternion.Rotation or ked.sampling.SuperSampledGrid"
+            )
+        if not orientations.size:
             raise ValueError(
                 f"Must be at least one orientation: size is {orientations.size}."
             )
 
         shape = orientations.shape
         # create holder for templates
-        temp = np.empty(shape, dtype=object)
-
+        arr = np.empty(shape, dtype=object)
         for ijk in np.ndindex(shape):
-            temp[ijk] = DiffractionTemplate.generate_template(
+            arr[ijk] = DiffractionTemplate.generate_template(
                 structure=self.structure,
                 g=self.g,
                 hkl=self.hkl.view(),
@@ -372,10 +375,10 @@ class DiffractionGenerator(abc.ABC):
             )
 
         if orientations.size == 1:
-            out = temp.ravel()[0]  # return bare template
+            return arr.ravel()[0]  # return template
         else:  # more than one rotation
-            out = DiffractionTemplateBlock(
-                temp,
+            return DiffractionTemplateBlock(
+                arr,
                 wavelength=self.wavelength,
                 s_max=s_max,
                 psi=psi,
@@ -387,7 +390,6 @@ class DiffractionGenerator(abc.ABC):
                 atomic_scattering_factor=self.atomic_scattering_factor,
                 debye_waller=self.debye_waller,
             )
-        return out
 
     def __repr__(self) -> str:
         return (
@@ -593,12 +595,7 @@ class DiffractionGenerator(abc.ABC):
 
     def generate_template_block(
         self,
-        grid: Optional[ArrayLike] = None,
-        xrange: Optional[ArrayLike] = None,
-        yrange: Optional[ArrayLike] = None,
-        zrange: Optional[ArrayLike] = None,
-        num: int = None,
-        supersampling: int = 1,
+        grid: Union[Orientation, SuperSampledOrientationGrid],
         s_max: float = S_MAX,
         psi: float = 0.0,
         omega: Union[float, ArrayLike] = 0.0,
@@ -615,18 +612,7 @@ class DiffractionGenerator(abc.ABC):
 
         Parameters
         ----------
-        grid: None or array-like
-            If None then all other parameters must be defined.
-            If provided then must be of the form (N, N, N, 3, s, s, s).
-            If provided all other parameters are ignored.
-        xrange, yrange, zrange: array-like
-            (min, max) ranges for the main grid.
-        num: int
-            Number of sampling points for the main grid.
-        supersampling: int
-            Supersampling grid points are distributed between evenly
-            around each main grid point. If equal to 1 then a normal
-            grid is produced, ie. no supersampling.
+        grid
         s_max: float
             Maximum excitation error for an excited reflection.
             In 1/Angstrom.
@@ -654,33 +640,26 @@ class DiffractionGenerator(abc.ABC):
         """
         # make sure either grid or other paramters needed to make the
         # grid are fully defined
-        if grid is not None:
-            assert (
-                isinstance(grid, np.ndarray) and grid.ndim == 7
-            ), "grid must be ndarray with ndim=7 and shape: (N, N, N, 3, s, s, s)."
+        if isinstance(grid, SuperSampledOrientationGrid):
+            _cls = DiffractionTemplateBlockSuperSampled
+        elif isinstance(grid, Orientation):
+            _cls = DiffractionTemplateBlock
         else:
-            assert all(
-                i is not None for i in (xrange, yrange, zrange, num, supersampling)
-            ), "If grid is not provided then all other parameters must be defined."
-            grid = generate_supersampled_grid(
-                xrange, yrange, zrange, num, supersampling, dtype
+            raise TypeError(
+                "grid must be orix.quaternion.Rotation or ked.sampling.SuperSampledOrientationGrid"
             )
 
-        ndim = 3  # possibly to fix later, eg 2d grid
-        out = np.empty(grid.shape[:ndim], dtype=object)
-
+        out = np.empty(grid.shape[:3], dtype=object)
         # now we have the grid...
         for ijk in tqdm(
-            np.ndindex(grid.shape[:ndim]),
-            total=np.prod(grid.shape[:ndim]),
+            np.ndindex(out.shape),
+            total=np.prod(out.shape),
             desc="Generating TemplateBlock",
             disable=not progressbar,
         ):
-            sub_grid = np.stack(tuple(g.ravel() for g in grid[ijk]), axis=1)
             # produce templateblock
             out[ijk] = self.generate_templates(
-                Rotation.from_axes_angles(sub_grid, np.linalg.norm(sub_grid, axis=-1)),
-                shape=grid.shape[-ndim:],
+                grid[ijk],
                 s_max=s_max,
                 psi=psi,
                 omega=omega,
@@ -689,42 +668,20 @@ class DiffractionGenerator(abc.ABC):
                 flip=flip,
             )
 
-        if supersampling > 1:
-            out = DiffractionTemplateBlockSuperSampled(
-                out,
-                xrange,
-                yrange,
-                zrange,
-                num,
-                supersampling,
-                wavelength=self.wavelength,
-                s_max=s_max,
-                psi=psi,
-                omega=omega,
-                model=model,
-                norm=norm,
-                flipped=flip,
-                max_angle=self.max_angle,
-                atomic_scattering_factor=self.atomic_scattering_factor,
-                debye_waller=self.debye_waller,
-                dtype=dtype,
-            )
-        else:
-            out = DiffractionTemplateBlock(
-                out,
-                wavelength=self.wavelength,
-                s_max=s_max,
-                psi=psi,
-                omega=omega,
-                model=model,
-                norm=norm,
-                flipped=flip,
-                max_angle=self.max_angle,
-                atomic_scattering_factor=self.atomic_scattering_factor,
-                debye_waller=self.debye_waller,
-            )
-
-        return out
+        return _cls(
+            out,
+            wavelength=self.wavelength,
+            s_max=s_max,
+            psi=psi,
+            omega=omega,
+            model=model,
+            norm=norm,
+            flipped=flip,
+            max_angle=self.max_angle,
+            atomic_scattering_factor=self.atomic_scattering_factor,
+            debye_waller=self.debye_waller,
+            dtype=dtype,
+        )
 
     def generate_template_block_rotvecs(
         self,
