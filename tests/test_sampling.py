@@ -52,7 +52,7 @@ def test_generate_grid(ravel):
     yrange = (-1.1, 1.1)
     zrange = (-2, 1.5)
     num = 5
-    grid = generate_grid(xrange, yrange, zrange, num, ravel=ravel)
+    grid = generate_grid(xrange, yrange, zrange, num, ravel=ravel, as_orientation=False)
     assert grid.shape == (num**3, 3) if ravel else (num, num, num, 3)
     if ravel:
         assert len(np.unique(grid, axis=0)) == len(grid)
@@ -66,6 +66,19 @@ def test_generate_grid(ravel):
         # z
         assert (grid[:, :, 0, 2] == zrange[0]).all()
         assert (grid[:, :, -1, 2] == zrange[1]).all()
+
+
+@pytest.mark.parametrize("ravel", [True, False])
+def test_generate_grid_as_orientation(ravel):
+    xrange = (-1, 1)
+    yrange = (-1.1, 1.1)
+    zrange = (-2, 1.5)
+    num = 5
+    grid = generate_grid(xrange, yrange, zrange, num, ravel=ravel, as_orientation=True)
+    assert isinstance(grid, Orientation)
+    assert grid.shape == (num**3,) if ravel else (num, num, num)
+    if ravel:
+        assert len(np.unique(grid.data, axis=0)) == grid.size
 
 
 @pytest.mark.parametrize("supersampling", [3, 4, 5])
@@ -107,7 +120,7 @@ def test_generate_supersampled_grid_orientation(degrees):
     yrange = (-1.1, 1.1)
     zrange = (-2, 1.5)
     num = 5
-    supersampling = 4
+    supersampling = 3
 
     grid = generate_supersampled_grid(
         xrange,

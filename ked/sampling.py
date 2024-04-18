@@ -38,8 +38,10 @@ def generate_grid(
     zrange: ArrayLike,
     num: int,
     endpoint: bool = True,
+    as_orientation: bool = True,
+    degrees: bool = False,
     ravel: bool = False,
-) -> NDArray:
+) -> Union[NDArray, Orientation]:
     """
     Generate a grid with even sampling over a specified range.
 
@@ -51,14 +53,19 @@ def generate_grid(
         The number of samples over each range.
     endpoint: bool
         Whether endpoint is included within the range.
+    as_orientation
+        If True then the created sub grids are treated as axes-angles
+        orientations and are cast as `orix.quaternion.Orientation`.
+    degrees
+        If `as_orientation` is `True` then this flag is passed to treat
+        the input grid as degrees.
     ravel: bool
         If True the grid is flattened to an (N**3, 3) array.
 
     Returns
     -------
-    samples: (3, N, N, N) or (N**3, 3) ndarray
-        The sampled values.
-
+    samples
+        Return shape is (N, N, N, 3) or (N**3, 3) if ravel is True.
     """
     x = np.linspace(*xrange, num, endpoint=endpoint)
     y = np.linspace(*yrange, num, endpoint=endpoint)
@@ -70,6 +77,11 @@ def generate_grid(
         out = np.column_stack(tuple(g.ravel() for g in grid))
     else:
         out = np.stack(grid, axis=-1)
+
+    if as_orientation:
+        out = Orientation.from_axes_angles(
+            out, np.linalg.norm(out, axis=-1), degrees=degrees
+        )
 
     return out
 
@@ -107,9 +119,11 @@ def generate_supersampled_grid(
 
     Returns
     -------
-    samples: (num, num, num, 3, ss, ss, ss) ndarray
-        The supersampled values.
-
+    samples:
+        (N, N, N) array of `orix.quaternion.Orientation` objects if
+        `as_orientation` is `True`.
+        (N, N, N, supersampling, supersampling, supersampling, 3) array
+        otherwise.
     """
     if supersampling < 1:
         raise ValueError("Supersampling must be >= 1.")
@@ -122,7 +136,9 @@ def generate_supersampled_grid(
     yspacing = (ymax - ymin) / num
     zspacing = (zmax - zmin) / num
 
-    large_grid = generate_grid(xrange, yrange, zrange, num, endpoint=True, ravel=False)
+    large_grid = generate_grid(
+        xrange, yrange, zrange, num, endpoint=True, as_orientation=False, ravel=False
+    )
 
     out_shape = large_grid.shape[:-1]
     if not as_orientation:
@@ -133,7 +149,7 @@ def generate_supersampled_grid(
         # grid center
         cx, cy, cz = large_grid[ijk]
         # generate subgrid centered on a large_grid point
-        sub_grid = generate_grid(
+        out[ijk] = generate_grid(
             (
                 cx + (xspacing / 2) * (1 / supersampling - 1),
                 cx + (xspacing / 2) * (1 / supersampling + 1),
@@ -148,13 +164,9 @@ def generate_supersampled_grid(
             ),
             num=supersampling,
             endpoint=False,
+            as_orientation=as_orientation,
+            degrees=degrees,
             ravel=False,
         )
-        if as_orientation:
-            out[ijk] = Orientation.from_axes_angles(
-                sub_grid, np.linalg.norm(sub_grid, axis=-1), degrees=degrees
-            )
-        else:
-            out[ijk] = sub_grid
 
     return SuperSampledOrientationGrid(out) if as_orientation else out
