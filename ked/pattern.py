@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Optional, Tuple, Union
+from typing import Generator, Literal, Optional, Tuple, Union
 
 import numpy as np
 from ipywidgets import Checkbox, IntSlider, interactive
@@ -247,6 +247,13 @@ class DiffractionPatternBlock:
 
     def __getitem__(self, indices) -> NDArray:
         return self.data[indices]
+
+    def ravel(self) -> Generator[NDArray, None, None]:
+        for ijk in np.ndindex(self.shape):
+            yield self.data[ijk]
+
+    def flatten(self) -> NDArray:
+        return self.data.reshape(-1, *self.pattern_shape)
 
     @property
     def A(self) -> NDArray:
