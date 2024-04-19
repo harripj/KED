@@ -1,15 +1,15 @@
 from __future__ import annotations
 
+import itertools
 from dataclasses import dataclass
 from enum import Enum
-import itertools
 from typing import Callable, Generator, Optional, Tuple, Union
 
+import numpy as np
 from diffpy.structure import Structure
 from ipywidgets import IntSlider, interactive
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
-import numpy as np
 from numpy.typing import ArrayLike, DTypeLike, NDArray
 from orix.quaternion import Orientation, Quaternion
 from orix.vector import Vector3d
@@ -1046,6 +1046,14 @@ class DiffractionTemplateBlock:
         return self.ravel()
 
     @property
+    def orientations(self) -> Orientation:
+        data = np.empty(self.templates.shape + (Orientation.dim,))
+        symmetry = None
+        for ijk, template in np.ndenumerate(self.templates):
+            data[ijk] = template.orientation.data
+        return Orientation(data, symmetry=symmetry or template.orientation.symmetry)
+
+    @property
     def shape(self):
         return self.templates.shape
 
@@ -1450,6 +1458,7 @@ class DiffractionTemplateBlockSuperSampled:
         center_of_mass_coordinates: bool = False,
         scale_disks: bool = False,
         dtype: DTypeLike = DTYPE,
+        progressbar: bool = True,
         keep_references: bool = False,
     ) -> DiffractionPatternBlock:
         """
@@ -1502,21 +1511,24 @@ class DiffractionTemplateBlockSuperSampled:
             np.ndindex(self.shape),
             total=self.size,
             desc="Generating averaged patterns",
+            disable=not progressbar,
         ):
             # each array element is a TemplateBlock
             # so generate the PatternBlock
-            template: DiffractionTemplateBlock = self.templates[ijk]
-            patterns: DiffractionPatternBlock = template.generate_diffraction_patterns(
-                shape,
-                pixel_size,
-                center=center,
-                psf=0,  # apply psf after averaging
-                direct_beam=direct_beam,
-                center_of_mass_coordinates=center_of_mass_coordinates,
-                scale_disks=scale_disks,
-                dtype=dtype,
-                disable_tqdm=True,
-                keep_references=keep_references,  # intermediate patterns
+            template_block: DiffractionTemplateBlock = self.templates[ijk]
+            patterns: DiffractionPatternBlock = (
+                template_block.generate_diffraction_patterns(
+                    shape,
+                    pixel_size,
+                    center=center,
+                    psf=0,  # apply psf after averaging
+                    direct_beam=direct_beam,
+                    center_of_mass_coordinates=center_of_mass_coordinates,
+                    scale_disks=scale_disks,
+                    dtype=dtype,
+                    progressbar=False,
+                    keep_references=keep_references,  # intermediate patterns
+                )
             )
 
             # average the patternblock
@@ -1527,6 +1539,7 @@ class DiffractionTemplateBlockSuperSampled:
             data=out,
             pixel_size=pixel_size,
             center=center,
+            orientations=template_block.orientations,
             psf=psf,
             direct_beam=direct_beam,
             center_of_mass_coordinates=center_of_mass_coordinates,
