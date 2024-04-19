@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar, List, Tuple, Union
 
-from matplotlib import pyplot as plt
 import numpy as np
-from numpy.typing import NDArray
 import orix
+import pandas as pd
+from matplotlib import pyplot as plt
+from numpy.typing import NDArray
 from orix.quaternion.orientation import Orientation
 from packaging import version
-import pandas as pd
 
 
 @dataclass

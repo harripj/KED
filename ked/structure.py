@@ -13,7 +13,7 @@ from orix.crystal_map import Phase
 
 
 def parse_structure(
-    structure: Union[aseAtoms, Phase, Structure, Path, str]
+    structure: Union[aseAtoms, Phase, Structure, Path, str],
 ) -> Structure:
     """Parse a structure input."""
     # sort out phase, use conventions defined in orix

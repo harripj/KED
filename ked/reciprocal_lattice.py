@@ -2,14 +2,14 @@ import logging
 from pathlib import Path
 from typing import Optional, Union
 
+import numpy as np
+import pandas as pd
 from ase import Atom as aseAtom
 from ase.data import atomic_numbers
 from diffpy.structure import Atom as diffpyAtom
 from diffpy.structure import Structure
 from diffpy.structure.spacegroupmod import SpaceGroup
-import numpy as np
 from numpy.typing import ArrayLike, DTypeLike, NDArray
-import pandas as pd
 from scipy.constants import Planck, angstrom, electron_mass, electron_volt, epsilon_0
 
 from .structure import get_element_name, get_positions
