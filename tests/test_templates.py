@@ -1,11 +1,11 @@
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import List, Union
 
-from matplotlib import pyplot as plt
 import numpy as np
-from orix.quaternion import Orientation
 import pytest
+from matplotlib import pyplot as plt
+from orix.quaternion import Orientation
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial.distance import cdist
 from skimage import io as skio
@@ -14,7 +14,7 @@ from skimage import measure, morphology, segmentation
 from ked.generator import CrystalDiffractionGenerator
 from ked.microscope import electron_wavelength, theta_to_k
 from ked.process import check_bounds_coords, virtual_reconstruction
-from ked.template import DiffractionTemplateExcitationErrorModel
+from ked.template import DiffractionTemplate, DiffractionTemplateExcitationErrorModel
 
 
 @pytest.fixture
@@ -23,12 +23,13 @@ def orientations(pattern_files):
     for f in pattern_files:
         f = str(f)
         match = re.search(r"\(.+\)", f)
+        if not match:
+            raise ValueError(f"Could not find orientation for {f}")
         euler.append(
             [float(v) for v in f[match.start() : match.end()].strip("()").split(",")]
         )
     euler = np.array(euler)
-    orientations = Orientation.from_euler(np.deg2rad(euler), direction="lab2crystal")
-    return orientations
+    return Orientation.from_euler(np.deg2rad(euler), direction="lab2crystal")
 
 
 def get_simulation_parameters_from_file_name(
@@ -44,6 +45,8 @@ def get_simulation_parameters_from_file_name(
 
     # orientation
     match = re.search(r"\(.+\)", str(fname))
+    if not match:
+        raise ValueError(f"Could not find orientation for {fname}")
     euler = [
         float(v)
         for v in match.string[match.start() : match.end()].strip("()").split(",")
@@ -71,7 +74,7 @@ def _template_simulation(
     data: dict, plot: bool = False, test: bool = True, min_overlap: float = 0.75
 ):
     cif = data["cif"]
-    ori = data["orientation"]
+    ori: Orientation = data["orientation"]
     max_angle = data["max_angle"]
     voltage = data["voltage"]
     s_max = data["s_max"]

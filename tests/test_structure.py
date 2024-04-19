@@ -1,11 +1,11 @@
 from pathlib import Path
-from typing import Callable, Tuple
+from typing import Callable, Tuple, Union
 
+import numpy as np
+import pytest
 from ase import io as aseio
 from diffpy.structure import Structure, loadStructure
-import numpy as np
 from orix.crystal_map import Phase
-import pytest
 
 from ked.structure import (
     get_positions,
@@ -17,7 +17,7 @@ from ked.structure import (
 
 
 def get_parsed_structures(
-    file: Path,
+    file: Union[str, Path],
 ) -> Tuple[Structure, Structure, Structure, Structure]:
     file = str(file)
     a = aseio.read(file)

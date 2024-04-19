@@ -1,6 +1,6 @@
 import numpy as np
-from orix.quaternion import Orientation
 import pytest
+from orix.quaternion import Orientation
 
 from ked.sampling import (
     SuperSampledOrientationGrid,
@@ -10,7 +10,6 @@ from ked.sampling import (
 
 
 class TestSuperSampledOrientationGrid:
-
     @pytest.mark.parametrize("degrees", [True, False])
     def test_from_axes_angles(self, degrees):
         xrange = (-1, 1)
