@@ -1,11 +1,11 @@
 from typing import List, Optional, Tuple
 
+import numpy as np
+import pandas as pd
 from IPython.display import display
 from ipywidgets import IntSlider, interactive
 from matplotlib import pyplot as plt
-import numpy as np
 from numpy.typing import ArrayLike, NDArray
-import pandas as pd
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial.distance import cdist
 

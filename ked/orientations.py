@@ -1,8 +1,8 @@
 import math
 from typing import List, Literal, Optional, Tuple, Union
 
-from matplotlib.pyplot import Axes
 import numpy as np
+from matplotlib.pyplot import Axes
 from numpy.typing import ArrayLike, NDArray
 from orix.quaternion import Orientation, Quaternion, Rotation
 from orix.quaternion.symmetry import C1, Symmetry

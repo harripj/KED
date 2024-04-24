@@ -1,7 +1,7 @@
-from collections.abc import Callable
 import itertools
 import logging
 import math
+from collections.abc import Callable
 from typing import Generator, List, Literal, Optional, Tuple, Union
 
 import h5py

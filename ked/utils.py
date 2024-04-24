@@ -2,16 +2,16 @@ from itertools import product
 from pathlib import Path
 from typing import List, Literal, Optional, Tuple, Union
 
+import numba
+import numpy as np
+import pandas as pd
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from ncempy.io import mrc
-import numba
-import numpy as np
 from numpy.typing import ArrayLike, DTypeLike, NDArray
 from orix.quaternion import Orientation
 from orix.quaternion import symmetry as osymmetry
 from orix.vector import AxAngle, Vector3d
-import pandas as pd
 from scipy import constants, ndimage
 from scipy.interpolate import interp1d
 
@@ -752,9 +752,7 @@ def _add_floats_to_array_2d(arr: NDArray, coords: NDArray, values: NDArray) -> N
         arr[
             int(coords[i, 0]) : int(coords[i, 0]) + 2,
             int(coords[i, 1]) : int(coords[i, 1]) + 2,
-        ] += (
-            values[i] * temp / temp.sum()
-        )
+        ] += values[i] * temp / temp.sum()
 
 
 def index_array_with_floats(

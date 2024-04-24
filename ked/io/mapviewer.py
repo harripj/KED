@@ -2,8 +2,8 @@ import os
 from pathlib import Path
 
 import numpy as np
-from orix.quaternion.orientation import Orientation
 import pandas as pd
+from orix.quaternion.orientation import Orientation
 from skimage import io as skio
 from skimage import measure
 

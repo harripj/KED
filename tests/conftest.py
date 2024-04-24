@@ -3,8 +3,11 @@ from typing import List, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
+from orix.quaternion import Orientation
 import pytest
 
+from ked.generator import CrystalDiffractionGenerator
+from ked.sampling import generate_supersampled_grid
 from ked.utils import add_floats_to_array
 
 TEST_DATA_PATH = Path(__file__).parent.joinpath("data")
@@ -107,3 +110,51 @@ def cif_files(
 @pytest.fixture
 def pattern_files(test_data_path: Path):
     return sorted(test_data_path.glob("*.tif"))
+
+
+@pytest.fixture
+def generator(cif_files):
+    material = "Fe"
+    files = [c for c in cif_files if material in c.stem]
+    if not files:
+        raise ValueError("No cif files found for material")
+    elif len(files) > 1:
+        raise ValueError("Multiple cif files found for material")
+    file = files[0]
+    return CrystalDiffractionGenerator(file, 200)
+
+
+@pytest.fixture
+def template(generator):
+    ori = Orientation.random()
+    return generator.generate_templates(ori)
+
+
+@pytest.fixture
+def template_block(generator):
+    ori = Orientation.random((2, 2))
+    return generator.generate_templates(ori)
+
+
+@pytest.fixture
+def template_block_supersampled(generator):
+    grid = generate_supersampled_grid(
+        (-1, 1),
+        (-1, 1),
+        (-1, 1),
+        num=3,
+        supersampling=2,
+        as_orientation=True,
+        degrees=True,
+    )
+    return generator.generate_templates(grid)
+
+
+@pytest.fixture
+def diffraction_pattern_shape():
+    return (256, 256)
+
+
+@pytest.fixture
+def pixel_size():
+    return 0.27  # Angstrom-1

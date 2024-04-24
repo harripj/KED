@@ -1046,6 +1046,14 @@ class DiffractionTemplateBlock:
         return self.ravel()
 
     @property
+    def orientations(self) -> Orientation:
+        data = np.empty(self.templates.shape + (Orientation.dim,))
+        symmetry = None
+        for ijk, template in np.ndenumerate(self.templates):
+            data[ijk] = template.orientation.data
+        return Orientation(data, symmetry=symmetry or template.orientation.symmetry)
+
+    @property
     def shape(self):
         return self.templates.shape
 
@@ -1400,11 +1408,6 @@ class DiffractionTemplateBlockSuperSampled:
     """
 
     templates: NDArray[np.object_]
-    xrange: ArrayLike
-    yrange: ArrayLike
-    zrange: ArrayLike
-    num: int
-    supersampling: int
     wavelength: float
     s_max: float
     norm: DiffractionTemplateExcitationErrorNorm
@@ -1417,8 +1420,12 @@ class DiffractionTemplateBlockSuperSampled:
     flipped: bool
     dtype: DTypeLike = DTYPE
 
+    @property
+    def supersampling(self) -> Tuple[int, int, int]:
+        return self.templates.ravel()[0].shape
+
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__} {self.xrange}, {self.yrange}, {self.zrange}"
+        return f"{self.__class__.__name__} {self.shape}"
 
     @property
     def shape(self):
@@ -1431,6 +1438,12 @@ class DiffractionTemplateBlockSuperSampled:
     @property
     def ndim(self):
         return self.templates.ndim
+
+    def ravel(self):
+        return self.templates.ravel()
+
+    def flatten(self):
+        return self.ravel()
 
     def __getitem__(self, indices) -> DiffractionTemplateBlock:
         return self.templates[indices]
@@ -1445,6 +1458,7 @@ class DiffractionTemplateBlockSuperSampled:
         center_of_mass_coordinates: bool = False,
         scale_disks: bool = False,
         dtype: DTypeLike = DTYPE,
+        progressbar: bool = True,
         keep_references: bool = False,
     ) -> DiffractionPatternBlock:
         """
@@ -1497,21 +1511,24 @@ class DiffractionTemplateBlockSuperSampled:
             np.ndindex(self.shape),
             total=self.size,
             desc="Generating averaged patterns",
+            disable=not progressbar,
         ):
             # each array element is a TemplateBlock
             # so generate the PatternBlock
-            template: DiffractionTemplateBlock = self.templates[ijk]
-            patterns: DiffractionPatternBlock = template.generate_diffraction_patterns(
-                shape,
-                pixel_size,
-                center=center,
-                psf=0,  # apply psf after averaging
-                direct_beam=direct_beam,
-                center_of_mass_coordinates=center_of_mass_coordinates,
-                scale_disks=scale_disks,
-                dtype=dtype,
-                disable_tqdm=True,
-                keep_references=keep_references,  # intermediate patterns
+            template_block: DiffractionTemplateBlock = self.templates[ijk]
+            patterns: DiffractionPatternBlock = (
+                template_block.generate_diffraction_patterns(
+                    shape,
+                    pixel_size,
+                    center=center,
+                    psf=0,  # apply psf after averaging
+                    direct_beam=direct_beam,
+                    center_of_mass_coordinates=center_of_mass_coordinates,
+                    scale_disks=scale_disks,
+                    dtype=dtype,
+                    progressbar=False,
+                    keep_references=keep_references,  # intermediate patterns
+                )
             )
 
             # average the patternblock
@@ -1522,6 +1539,7 @@ class DiffractionTemplateBlockSuperSampled:
             data=out,
             pixel_size=pixel_size,
             center=center,
+            orientations=template_block.orientations,
             psf=psf,
             direct_beam=direct_beam,
             center_of_mass_coordinates=center_of_mass_coordinates,

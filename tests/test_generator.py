@@ -1,9 +1,15 @@
-from diffpy.structure import Structure
-from orix.quaternion import Orientation
+import numpy as np
 import pytest
+from diffpy.structure import Structure
+from orix.quaternion import Orientation, symmetry
 
 from ked.generator import CrystalDiffractionGenerator, DiffractionGeneratorType
-from ked.template import DiffractionTemplate, DiffractionTemplateBlock
+from ked.sampling import generate_grid, generate_supersampled_grid
+from ked.template import (
+    DiffractionTemplate,
+    DiffractionTemplateBlock,
+    DiffractionTemplateBlockSuperSampled,
+)
 
 
 @pytest.mark.parametrize(
@@ -27,14 +33,51 @@ def test_generator_init(cif_Fe_BCC, kV, asf, db):
 def test_generate_template(cif_Fe_BCC):
     generator = CrystalDiffractionGenerator(cif_Fe_BCC, 200)
     o = Orientation.random()  # single orientation
+    o.symmetry = symmetry.D2h
     temp = generator.generate_templates(o)
     assert isinstance(temp, DiffractionTemplate)
+    assert np.allclose(temp.orientation.data, o.data)
+    assert temp.orientation.symmetry == symmetry.D2h
 
 
-def test_generate_template_block(cif_Fe_BCC):
+@pytest.mark.parametrize("grid, shape", [(False, (5, 3)), (True, (5, 5, 5))])
+def test_generate_template_block(cif_Fe_BCC, grid, shape):
     generator = CrystalDiffractionGenerator(cif_Fe_BCC, 200)
-    o = Orientation.random((5, 3))
+    if grid:
+        o = generate_grid(
+            (-1, 1), (-1, 1), (-1, 1), shape[0], as_orientation=True, degrees=True
+        )
+    else:
+        o = Orientation.random(shape)
+    o.symmetry = symmetry.Th
     temp = generator.generate_templates(o)
     assert isinstance(temp, DiffractionTemplateBlock)
     assert temp.shape == o.shape
     assert all(isinstance(i, DiffractionTemplate) for i in temp.ravel())
+    temp_ori = temp.orientations
+    assert isinstance(temp_ori, Orientation)
+    assert temp_ori.shape == o.shape
+    assert np.allclose(temp_ori.data, o.data)
+    assert temp_ori.symmetry == symmetry.Th
+
+
+@pytest.mark.parametrize("num", [1, 5])
+def test_generate_template_block_supersampled(cif_Fe_BCC, num):
+    generator = CrystalDiffractionGenerator(cif_Fe_BCC, 200)
+    supersampling = 3
+    grid = generate_supersampled_grid(
+        (-1, 1),
+        (-1, 1),
+        (-1, 1),
+        num=num,
+        supersampling=supersampling,
+        as_orientation=True,
+        degrees=True,
+    )
+    templates = generator.generate_templates(grid)
+    assert isinstance(templates, DiffractionTemplateBlockSuperSampled)
+    assert templates.shape == grid.shape
+    assert templates.supersampling == (supersampling,) * 3
+    for template in templates.ravel():
+        assert isinstance(template, DiffractionTemplateBlock)
+        assert template.shape == (supersampling,) * 3

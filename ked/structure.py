@@ -1,19 +1,19 @@
-import re
 from pathlib import Path
+import re
 from typing import Union
 
-import numpy as np
 from ase import Atom as aseAtom
 from ase import Atoms as aseAtoms
 from ase.data import chemical_symbols
 from diffpy.structure import Atom as diffpyAtom
 from diffpy.structure import Lattice, Structure
+import numpy as np
 from numpy.typing import NDArray
 from orix.crystal_map import Phase
 
 
 def parse_structure(
-    structure: Union[aseAtoms, Phase, Structure, Path, str]
+    structure: Union[aseAtoms, Phase, Structure, Path, str],
 ) -> Structure:
     """Parse a structure input."""
     # sort out phase, use conventions defined in orix
@@ -29,7 +29,7 @@ def parse_structure(
                     diffpyAtom(atype=atom.symbol, xyz=atom.scaled_position)
                     for atom in structure
                 ],
-                lattice=Lattice(base=structure.get_cell().array),
+                lattice=Lattice(*structure.get_cell().cellpar()),
             )
         )
     elif isinstance(structure, Phase):

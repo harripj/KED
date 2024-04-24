@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Callable, Tuple
+from typing import Callable, Tuple, Union
 
 from ase import io as aseio
 from diffpy.structure import Structure, loadStructure
@@ -17,7 +17,7 @@ from ked.structure import (
 
 
 def get_parsed_structures(
-    file: Path,
+    file: Union[str, Path],
 ) -> Tuple[Structure, Structure, Structure, Structure]:
     file = str(file)
     a = aseio.read(file)
@@ -37,7 +37,6 @@ def test_parse_structure(cif_files):
         assert all([isinstance(i, Structure) for i in (s, a, p, f)])
 
 
-@pytest.mark.skip(reason="orix bug")
 @pytest.mark.parametrize(
     "fn", [get_positions, get_scaled_positions, get_unit_vectors, get_unit_cell_volume]
 )
