@@ -2,9 +2,9 @@ from pathlib import Path
 from typing import List, Tuple
 
 import numpy as np
-import pytest
 from numpy.typing import NDArray
 from orix.quaternion import Orientation
+import pytest
 
 from ked.generator import CrystalDiffractionGenerator
 from ked.sampling import generate_supersampled_grid
